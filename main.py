@@ -1,21 +1,12 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import requests
-
-app = Flask(__name__)
-# Включаем CORS для всех доменов
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
-API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
-
-@app.route('/create_invoice', methods=['GET'])
+@app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
+    """
+    Версия для GET запросов (для PuzzleBot)
+    """
+    # Получаем параметры из URL
     amount = request.args.get('amount', 500, type=int)
     external_id = request.args.get('externalId', f'test_{int(time.time())}')
     description = request.args.get('description', 'VPN payment')
-    
-    data = request.json
     
     headers = {
         "x-api-key": API_KEY,
@@ -24,9 +15,9 @@ def create_invoice_get():
     }
     
     payload = {
-        "amount": data.get("amount", 500),
-        "externalId": data.get("externalId", "test_123"),
-        "description": data.get("description", "VPN payment")
+        "amount": amount,
+        "externalId": external_id,
+        "description": description
     }
     
     try:
@@ -44,7 +35,7 @@ def create_invoice_get():
             payment_url = result.get("paymentUrl")
             return jsonify({
                 "success": True,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут. После оплаты нажмите «Оплатил».",
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.",
                 "paymentUrl": payment_url
             })
         
@@ -66,10 +57,3 @@ def create_invoice_get():
             "success": False,
             "message": "❌ Техническая ошибка. Попробуйте позже."
         })
-
-@app.route('/health', methods=['GET'])
-def health():
-    return "OK"
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
