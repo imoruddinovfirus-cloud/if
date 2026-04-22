@@ -1,13 +1,16 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
+CORS(app) # Включаем поддержку CORS для всех маршрутов
 
 API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
 
 @app.route('/create_invoice', methods=['POST'])
 def create_invoice():
+
     data = request.json
     
     headers = {
