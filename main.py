@@ -32,36 +32,24 @@ def create_invoice():
         
         result = response.json()
         
-        # Если Lpay вернул ошибку 400 No available traders
-        if response.status_code == 400 and "No available traders" in str(result):
-            return jsonify({
-                "error": "no_traders",
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
-            }), 200
+        # Успех — возвращаем ссылку
+        if response.status_code == 201:
+            payment_url = result.get("paymentUrl")
+            return f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут. После оплаты нажмите «Оплатил»."
         
-        # Любая другая ошибка от Lpay
-        if response.status_code != 201:
-            return jsonify({
-                "error": "lpay_error",
-                "message": f"Ошибка платежного сервиса: {result.get('message', 'Неизвестная ошибка')}"
-            }), 200
+        # Ошибка No available traders
+        if "No available traders" in str(result):
+            return "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
         
-        # Успех — возвращаем paymentUrl
-        return jsonify({
-            "success": True,
-            "paymentUrl": result.get("paymentUrl"),
-            "invoiceId": result.get("invoiceId")
-        }), 200
+        # Любая другая ошибка
+        return f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}"
         
     except Exception as e:
-        return jsonify({
-            "error": "server_error",
-            "message": "❌ Техническая ошибка. Попробуйте позже."
-        }), 200
+        return "❌ Техническая ошибка. Попробуйте позже."
 
 @app.route('/health', methods=['GET'])
 def health():
-    return "OK", 200
+    return "OK"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
