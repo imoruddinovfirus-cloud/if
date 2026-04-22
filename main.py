@@ -1,12 +1,14 @@
-@app.route('/create_invoice_get', methods=['GET'])
-def create_invoice_get():
-    """
-    Версия для GET запросов (для PuzzleBot)
-    """
-    # Получаем параметры из URL
-    amount = request.args.get('amount', 500, type=int)
-    external_id = request.args.get('externalId', f'test_{int(time.time())}')
-    description = request.args.get('description', 'VPN payment')
+from flask import Flask, request, jsonify
+import requests
+
+app = Flask(__name__)
+
+API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
+API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
+
+@app.route('/create_invoice', methods=['POST'])
+def create_invoice():
+    data = request.json
     
     headers = {
         "x-api-key": API_KEY,
@@ -15,9 +17,9 @@ def create_invoice_get():
     }
     
     payload = {
-        "amount": amount,
-        "externalId": external_id,
-        "description": description
+        "amount": data.get("amount", 500),
+        "externalId": data.get("externalId", "test_123"),
+        "description": data.get("description", "VPN payment")
     }
     
     try:
@@ -33,27 +35,21 @@ def create_invoice_get():
         # Успех — возвращаем ссылку
         if response.status_code == 201:
             payment_url = result.get("paymentUrl")
-            return jsonify({
-                "success": True,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.",
-                "paymentUrl": payment_url
-            })
+            return f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут. После оплаты нажмите «Оплатил»."
         
         # Ошибка No available traders
         if "No available traders" in str(result):
-            return jsonify({
-                "success": False,
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
-            })
+            return "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
         
         # Любая другая ошибка
-        return jsonify({
-            "success": False,
-            "message": f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}"
-        })
+        return f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}"
         
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": "❌ Техническая ошибка. Попробуйте позже."
-        })
+        return "❌ Техническая ошибка. Попробуйте позже."
+
+@app.route('/health', methods=['GET'])
+def health():
+    return "OK"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
