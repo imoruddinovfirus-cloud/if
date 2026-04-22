@@ -1,16 +1,22 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
-CORS(app) # Включаем поддержку CORS для всех маршрутов
+
+# --- ЭТА ЧАСТЬ ДОБАВЛЯЕТ ПРАВИЛЬНЫЕ ЗАГОЛОВКИ ДЛЯ PUZZLEBOT ---
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST')
+    return response
+# -------------------------------------------------------------
 
 API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
 
 @app.route('/create_invoice', methods=['POST'])
 def create_invoice():
-
     data = request.json
     
     headers = {
@@ -35,17 +41,13 @@ def create_invoice():
         
         result = response.json()
         
-        # Успех — возвращаем ссылку
-        if response.status_code == 201:
-            payment_url = result.get("paymentUrl")
-            return f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут. После оплаты нажмите «Оплатил»."
-        
-        # Ошибка No available traders
-        if "No available traders" in str(result):
+        if response.status_code == 400 and "No available traders" in str(result):
             return "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
         
-        # Любая другая ошибка
-        return f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}"
+        if response.status_code != 201:
+            return f"❌ Ошибка: {result.get('message', 'Попробуйте позже')}"
+        
+        return result.get("paymentUrl", "Ссылка не получена")
         
     except Exception as e:
         return "❌ Техническая ошибка. Попробуйте позже."
