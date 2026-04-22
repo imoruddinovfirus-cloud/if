@@ -19,8 +19,7 @@ def create_invoice():
     payload = {
         "amount": data.get("amount", 500),
         "externalId": data.get("externalId", "test_123"),
-        "description": data.get("description", "VPN payment"),
-        "callbackUrl": ""
+        "description": data.get("description", "VPN payment")
     }
     
     response = requests.post(
