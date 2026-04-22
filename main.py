@@ -1,13 +1,20 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
+# Включаем CORS для всех доменов
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
 
-@app.route('/create_invoice', methods=['POST'])
+@app.route('/create_invoice', methods=['POST', 'OPTIONS'])
 def create_invoice():
+    # Обработка preflight запросов CORS
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     data = request.json
     
     headers = {
@@ -35,17 +42,30 @@ def create_invoice():
         # Успех — возвращаем ссылку
         if response.status_code == 201:
             payment_url = result.get("paymentUrl")
-            return f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут. После оплаты нажмите «Оплатил»."
+            return jsonify({
+                "success": True,
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут. После оплаты нажмите «Оплатил».",
+                "paymentUrl": payment_url
+            })
         
         # Ошибка No available traders
         if "No available traders" in str(result):
-            return "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
+            return jsonify({
+                "success": False,
+                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
+            })
         
         # Любая другая ошибка
-        return f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}"
+        return jsonify({
+            "success": False,
+            "message": f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}"
+        })
         
     except Exception as e:
-        return "❌ Техническая ошибка. Попробуйте позже."
+        return jsonify({
+            "success": False,
+            "message": "❌ Техническая ошибка. Попробуйте позже."
+        })
 
 @app.route('/health', methods=['GET'])
 def health():
