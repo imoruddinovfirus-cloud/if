@@ -22,13 +22,42 @@ def create_invoice():
         "description": data.get("description", "VPN payment")
     }
     
-    response = requests.post(
-        "https://api.lpayapp.xyz/invoices",
-        headers=headers,
-        json=payload
-    )
-    
-    return jsonify(response.json()), response.status_code
+    try:
+        response = requests.post(
+            "https://api.lpayapp.xyz/invoices",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        result = response.json()
+        
+        # Если Lpay вернул ошибку 400 No available traders
+        if response.status_code == 400 and "No available traders" in str(result):
+            return jsonify({
+                "error": "no_traders",
+                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут."
+            }), 200
+        
+        # Любая другая ошибка от Lpay
+        if response.status_code != 201:
+            return jsonify({
+                "error": "lpay_error",
+                "message": f"Ошибка платежного сервиса: {result.get('message', 'Неизвестная ошибка')}"
+            }), 200
+        
+        # Успех — возвращаем paymentUrl
+        return jsonify({
+            "success": True,
+            "paymentUrl": result.get("paymentUrl"),
+            "invoiceId": result.get("invoiceId")
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "error": "server_error",
+            "message": "❌ Техническая ошибка. Попробуйте позже."
+        }), 200
 
 @app.route('/health', methods=['GET'])
 def health():
