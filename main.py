@@ -9,11 +9,11 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
 
-@app.route('/create_invoice', methods=['POST', 'OPTIONS'])
-def create_invoice():
-    # Обработка preflight запросов CORS
-    if request.method == 'OPTIONS':
-        return '', 200
+@app.route('/create_invoice', methods=['GET'])
+def create_invoice_get():
+    amount = request.args.get('amount', 500, type=int)
+    external_id = request.args.get('externalId', f'test_{int(time.time())}')
+    description = request.args.get('description', 'VPN payment')
     
     data = request.json
     
