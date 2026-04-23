@@ -156,3 +156,43 @@ def test_cors():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+@app.route('/check_payment', methods=['GET'])
+def check_payment():
+    external_id = request.args.get('externalId')
+    
+    if not external_id:
+        return "❌ Ошибка: externalId не указан"
+    
+    headers = {
+        "x-api-key": API_KEY,
+        "x-api-secret": API_SECRET,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # Ищем инвойс по externalId
+        response = requests.get(
+            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+            headers=headers,
+            timeout=30
+        )
+        
+        result = response.json()
+        
+        if response.status_code == 200 and result.get('items'):
+            invoice = result['items'][0]
+            status = invoice.get('status')
+            
+            if status == 'confirmed':
+                return "✅ Оплата подтверждена!"
+            elif status == 'expired':
+                return "❌ Время оплаты вышло. Попробуйте снова."
+            elif status == 'cancelled':
+                return "❌ Платёж отменён."
+            else:
+                return "⏳ Оплата ещё не поступила. Подождите или проверьте позже."
+        else:
+            return "❌ Инвойс не найден. Попробуйте создать новый платёж."
+            
+    except Exception as e:
+        return "❌ Ошибка при проверке. Попробуйте позже."
