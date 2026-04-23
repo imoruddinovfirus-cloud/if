@@ -32,7 +32,7 @@ def after_request(response):
 def create_invoice_get():
     """
     Версия для GET запросов (для PuzzleBot)
-    Возвращает простой текст со ссылкой на оплату
+    Возвращает простой текст со ссылкой на оплату в формате: message Ваша ссылка на оплату: {ссылка}
     """
     # ЛОГИРУЕМ ВСЕ ДЕТАЛИ ЗАПРОСА
     logger.info("=" * 50)
@@ -86,41 +86,41 @@ def create_invoice_get():
         result = response.json()
         logger.info(f"ОТВЕТ LPAY: status={response.status_code}, result={result}")
         
-        # Успех — возвращаем только ссылку в виде простого текста
+        # Успех — возвращаем ссылку в формате для PuzzleBot
         if response.status_code == 201:
             payment_url = result.get("paymentUrl")
             if payment_url:
                 logger.info(f"УСПЕШНО: возвращаем ссылку: {payment_url}")
-                # Возвращаем простой текст со ссылкой
-                response_text = f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
+                # Возвращаем простой текст в формате для PuzzleBot
+                response_text = f"message Ваша ссылка на оплату: {payment_url}"
                 return make_response(response_text, 200, {'Content-Type': 'text/plain; charset=utf-8'})
             else:
                 logger.error("В ответе Lpay нет paymentUrl")
-                return make_response("❌ Ошибка: в ответе платежной системы нет ссылки", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+                return make_response("message Ошибка: в ответе платежной системы нет ссылки", 500, {'Content-Type': 'text/plain; charset=utf-8'})
         
         # Ошибка No available traders
         if "No available traders" in str(result):
             logger.warning("НЕТ ТРЕЙДЕРОВ")
-            return make_response("❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+            return make_response("message Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
         
         # Любая другая ошибка
         error_msg = result.get('message', 'Попробуйте позже')
         logger.error(f"ОШИБКА LPAY: {error_msg}")
-        return make_response(f"❌ Ошибка платежного сервиса: {error_msg}", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+        return make_response(f"message Ошибка платежного сервиса: {error_msg}", 500, {'Content-Type': 'text/plain; charset=utf-8'})
         
     except Exception as e:
         logger.error(f"ИСКЛЮЧЕНИЕ: {str(e)}", exc_info=True)
-        return make_response("❌ Техническая ошибка. Попробуйте позже.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+        return make_response("message Техническая ошибка. Попробуйте позже.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
 
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     """
     Проверка статуса платежа
-    Возвращает простой текст для PuzzleBot
+    Возвращает простой текст для PuzzleBot в формате: message {текст}
     """
     ext_id = request.args.get('externalId')
     if not ext_id:
-        return make_response("❌ Ошибка: не указан externalId", 400, {'Content-Type': 'text/plain; charset=utf-8'})
+        return make_response("message Ошибка: не указан externalId", 400, {'Content-Type': 'text/plain; charset=utf-8'})
 
     # Заголовки для Lpay
     headers = {
@@ -141,22 +141,22 @@ def check_payment():
         if resp.status_code == 200 and data.get('items'):
             status = data['items'][0].get('status')
             if status == 'confirmed':
-                msg = "✅ ОПЛАЧЕНО! Ваш VPN ключ будет выдан."
+                msg = "message ОПЛАЧЕНО! Ваш VPN ключ будет выдан."
             elif status == 'expired':
-                msg = "❌ Время оплаты вышло. Пожалуйста, создайте новый платёж."
+                msg = "message Время оплаты вышло. Пожалуйста, создайте новый платёж."
             elif status == 'cancelled':
-                msg = "❌ Платёж отменён."
+                msg = "message Платёж отменён."
             else:
-                msg = f"⏳ Платёж не подтверждён. Статус: {status}. Попробуйте позже."
+                msg = f"message Платёж не подтверждён. Статус: {status}. Попробуйте позже."
         else:
-            msg = "❌ Платёж не найден. Проверьте ссылку или создайте новый."
+            msg = "message Платёж не найден. Проверьте ссылку или создайте новый."
             
-        # Возвращаем только текст (PuzzleBot его точно поймёт)
+        # Возвращаем только текст в формате для PuzzleBot
         return make_response(msg, 200, {'Content-Type': 'text/plain; charset=utf-8'})
         
     except Exception as e:
         logger.error(f"Ошибка при проверке платежа: {str(e)}")
-        return make_response("❌ Ошибка при проверке платежа. Сервер Lpay может быть недоступен.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+        return make_response("message Ошибка при проверке платежа. Сервер Lpay может быть недоступен.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
 
 @app.route('/test_cors', methods=['GET', 'OPTIONS', 'POST'])
 def test_cors():
