@@ -86,16 +86,17 @@ def create_invoice_get():
         logger.info(f"ОТВЕТ LPAY: status={response.status_code}, result={result}")
         
         # Успех — возвращаем ссылку
-        iif response.status_code == 201:
-    payment_url = result.get("paymentUrl")
-    invoice_id = result.get("invoiceId")
-    response_data = {
-        "success": True,
-        "paymentUrl": payment_url,
-        "invoiceId": invoice_id,
-        "message": f"{payment_url}"externalId": external_id,"
-    }
-    return jsonify(response_data)
+              if response.status_code == 201:
+            payment_url = result.get("paymentUrl")
+            invoice_id = result.get("invoiceId")
+            response_data = {
+                "success": True,
+                "paymentUrl": payment_url,
+                "invoiceId": invoice_id,
+                "externalId": external_id,
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
+            }
+            return jsonify(response_data)
         
         # Ошибка No available traders
         if "No available traders" in str(result):
