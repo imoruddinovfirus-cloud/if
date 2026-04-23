@@ -28,26 +28,13 @@ def after_request(response):
     response.headers.add('Access-Control-Max-Age', '3600')
     return response
 
-@app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
+@app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    from flask import make_response
-    
-    if request.method == 'OPTIONS':
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', '*')
-        response.headers.add('Access-Control-Allow-Methods', '*')
-        return response
-    
-    amount = request.args.get('amount', 20, type=int)
     external_id = request.args.get('externalId')
-    description = request.args.get('description', 'VPN payment')
+    amount = request.args.get('amount', 20, type=int)
     
-    if not external_id or external_id == 'fin_':
-        resp = make_response("❌ Ошибка: ID пользователя не передан")
-        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        resp.headers.add('Access-Control-Allow-Origin', '*')
-        return resp, 400
+    if not external_id:
+        return "❌ Ошибка: externalId не указан"
     
     headers = {
         "x-api-key": API_KEY,
@@ -58,39 +45,30 @@ def create_invoice_get():
     payload = {
         "amount": amount,
         "externalId": external_id,
-        "description": description
+        "description": "VPN payment"
     }
     
     try:
-        response_lpay = requests.post(
+        response = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
             json=payload,
             timeout=30
         )
         
-        result = response_lpay.json()
+        result = response.json()
         
-        if response_lpay.status_code == 201:
-            payment_url = result.get('paymentUrl')
-            # Возвращаем текст с пояснением
-            resp_text = f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
-            resp = make_response(resp_text)
-            resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-            resp.headers.add('Access-Control-Allow-Origin', '*')
-            return resp, 200
+        if response.status_code == 201:
+            # Возвращаем ссылку на бота с start-параметром
+            bot_username = "ВАШ_ЮЗЕРНЕЙМ_БОТА"  # Замени на свой
+            start_link = f"https://t.me/{bot_username}?start=check_{external_id}"
+            return start_link
         else:
-            error_msg = result.get('message', 'Неизвестная ошибка')
-            resp = make_response(f"❌ Ошибка: {error_msg}")
-            resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-            resp.headers.add('Access-Control-Allow-Origin', '*')
-            return resp, 400
+            return f"❌ Ошибка: {result.get('message', 'Неизвестная ошибка')}"
             
     except Exception as e:
-        resp = make_response("❌ Внутренняя ошибка сервера")
-        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        resp.headers.add('Access-Control-Allow-Origin', '*')
-        return resp, 500
+        return "❌ Внутренняя ошибка"
+        
 @app.route('/test_cors', methods=['GET', 'OPTIONS', 'POST'])
 def test_cors():
     """
