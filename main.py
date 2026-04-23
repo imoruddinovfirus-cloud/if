@@ -37,43 +37,21 @@ def health_check():
     """
     return make_response("OK", 200, {'Content-Type': 'text/plain; charset=utf-8'})
 
-@app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
+@app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
     """
-    Версия для GET запросов (для PuzzleBot)
-    Возвращает простой текст со ссылкой на оплату в формате: Ваша ссылка на оплату: {ссылка}
+    Максимально упрощенная версия для PuzzleBot
     """
-    # ЛОГИРУЕМ ВСЕ ДЕТАЛИ ЗАПРОСА
-    logger.info("=" * 50)
-    logger.info(f"МЕТОД: {request.method}")
-    logger.info(f"URL: {request.url}")
-    logger.info(f"ЗАГОЛОВКИ: {dict(request.headers)}")
-    logger.info(f"АРГУМЕНТЫ: {request.args}")
-    logger.info(f"USER-AGENT: {request.user_agent}")
-    logger.info("=" * 50)
-    
-    # ОБРАБОТКА OPTIONS ДЛЯ CORS
-    if request.method == 'OPTIONS':
-        logger.info("ОБРАБОТКА OPTIONS ЗАПРОСА ДЛЯ CORS")
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', '*')
-        response.headers.add('Access-Control-Allow-Methods', '*')
-        return response
-    
     # Получаем параметры из URL
-    amount = request.args.get('amount', 500, type=int)
-    external_id = request.args.get('externalId', f'test_{int(time.time())}')
-    description = request.args.get('description', 'VPN payment')
-    
-    logger.info(f"ПАРАМЕТРЫ: amount={amount}, externalId={external_id}, description={description}")
+    amount = request.args.get('amount', 20, type=int)
+    external_id = request.args.get('externalId', 'test')
+    description = request.args.get('description', 'VPN')
     
     # ПОДГОТАВЛИВАЕМ ЗАПРОС К LPAY
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
-        "Content-Type": "application/json",
-        "User-Agent": str(request.user_agent)  # Передаем User-Agent от клиента
+        "Content-Type": "application/json"
     }
     
     payload = {
@@ -83,8 +61,6 @@ def create_invoice_get():
     }
     
     try:
-        logger.info(f"ОТПРАВКА В LPAY: {payload}")
-        
         response = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
@@ -92,34 +68,18 @@ def create_invoice_get():
             timeout=30
         )
         
-        result = response.json()
-        logger.info(f"ОТВЕТ LPAY: status={response.status_code}, result={result}")
-        
-        # Успех — возвращаем ссылку в формате для PuzzleBot
         if response.status_code == 201:
+            result = response.json()
             payment_url = result.get("paymentUrl")
             if payment_url:
-                logger.info(f"УСПЕШНО: возвращаем ссылку: {payment_url}")
-                # Возвращаем простой текст в формате для PuzzleBot
-                response_text = f" Ваша ссылка на оплату: {payment_url}"
-                return make_response(response_text, 200, {'Content-Type': 'text/plain; charset=utf-8'})
-            else:
-                logger.error("В ответе Lpay нет paymentUrl")
-                return make_response(" Ошибка: в ответе платежной системы нет ссылки", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+                # ВОЗВРАЩАЕМ ТОЛЬКО ССЫЛКУ БЕЗ ЛЮБОГО ТЕКСТА
+                return payment_url
         
-        # Ошибка No available traders
-        if "No available traders" in str(result):
-            logger.warning("НЕТ ТРЕЙДЕРОВ")
-            return make_response(" Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
-        
-        # Любая другая ошибка
-        error_msg = result.get('message', 'Попробуйте позже')
-        logger.error(f"ОШИБКА LPAY: {error_msg}")
-        return make_response(f" Ошибка платежного сервиса: {error_msg}", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+        # Если ошибка - возвращаем простой текст
+        return "Ошибка при создании платежа"
         
     except Exception as e:
-        logger.error(f"ИСКЛЮЧЕНИЕ: {str(e)}", exc_info=True)
-        return make_response(" Техническая ошибка. Попробуйте позже.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+        return "Техническая ошибка"
 
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
