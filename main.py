@@ -232,7 +232,7 @@ def check_payment():
     except Exception as e:
         return make_response("error")
     @app.route('/check_by_link', methods=['GET'])
-def check_by_link():
+    def check_by_link():
     from flask import make_response
     import re
     
