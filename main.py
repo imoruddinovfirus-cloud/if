@@ -92,9 +92,8 @@ def create_invoice_get():
     response_data = {
         "success": True,
         "paymentUrl": payment_url,
-        "externalId": external_id,
         "invoiceId": invoice_id,
-        "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
+        "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."externalId": external_id,"
     }
     return jsonify(response_data)
         
