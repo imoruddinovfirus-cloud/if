@@ -249,3 +249,42 @@ def check_payment():
 
     except Exception as e:
         return "❌ Ошибка при проверке. Попробуйте позже."
+@app.route('/check_payment_text', methods=['GET'])
+def check_payment_text():
+    """Возвращает ТОЛЬКО текстовое сообщение для PuzzleBot."""
+    from flask import request
+    import requests
+
+    external_id = request.args.get('externalId')
+    if not external_id:
+        return "Ошибка: нет externalId"
+
+    headers = {
+        "x-api-key": API_KEY,
+        "x-api-secret": API_SECRET
+    }
+
+    try:
+        # Запрос к API Lpay
+        resp = requests.get(
+            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+            headers=headers,
+            timeout=10
+        )
+        data = resp.json()
+
+        if resp.status_code == 200 and data.get('items'):
+            status = data['items'][0].get('status')
+            if status == 'confirmed':
+                return "✅ Оплата подтверждена!"
+            elif status == 'expired':
+                return "❌ Время оплаты вышло."
+            elif status == 'cancelled':
+                return "❌ Платёж отменён."
+            else:
+                return f"⏳ Ожидаем оплату... (статус: {status})"
+        else:
+            return "❌ Платёж не найден."
+
+    except Exception:
+        return "❌ Ошибка соединения с платёжным сервером."
