@@ -32,25 +32,22 @@ def after_request(response):
 def create_invoice_get():
     from flask import make_response
     
-    # Обработка предварительного запроса OPTIONS
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, x-api-key, x-api-secret')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        response.headers.add('Access-Control-Max-Age', '3600')
-        return response, 200
+        response.headers.add('Access-Control-Allow-Headers', '*')
+        response.headers.add('Access-Control-Allow-Methods', '*')
+        return response
     
     amount = request.args.get('amount', 20, type=int)
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
-    # Если externalId не передан или равен "fin_" (пустой), выдаём ошибку
     if not external_id or external_id == 'fin_':
-        response = make_response("❌ Ошибка: не указан ID пользователя")
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        return response, 400
+        resp = make_response("❌ Ошибка: ID пользователя не передан")
+        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        resp.headers.add('Access-Control-Allow-Origin', '*')
+        return resp, 400
     
     headers = {
         "x-api-key": API_KEY,
@@ -65,36 +62,35 @@ def create_invoice_get():
     }
     
     try:
-        resp = requests.post(
+        response_lpay = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
             json=payload,
             timeout=30
         )
         
-        result = resp.json()
+        result = response_lpay.json()
         
-        if resp.status_code == 201:
+        if response_lpay.status_code == 201:
             payment_url = result.get('paymentUrl')
-            # Возвращаем текст + ссылку
-            response_text = f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
-            response = make_response(response_text)
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
-            return response, 200
+            # Возвращаем текст с пояснением
+            resp_text = f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
+            resp = make_response(resp_text)
+            resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            resp.headers.add('Access-Control-Allow-Origin', '*')
+            return resp, 200
         else:
             error_msg = result.get('message', 'Неизвестная ошибка')
-            response = make_response(f"❌ Ошибка Lpay: {error_msg}")
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
-            return response, 400
+            resp = make_response(f"❌ Ошибка: {error_msg}")
+            resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            resp.headers.add('Access-Control-Allow-Origin', '*')
+            return resp, 400
             
     except Exception as e:
-        response = make_response("❌ Внутренняя ошибка сервера")
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        return response, 500
-
+        resp = make_response("❌ Внутренняя ошибка сервера")
+        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        resp.headers.add('Access-Control-Allow-Origin', '*')
+        return resp, 500
 @app.route('/test_cors', methods=['GET', 'OPTIONS', 'POST'])
 def test_cors():
     """
