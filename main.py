@@ -41,7 +41,7 @@ def health_check():
 def create_invoice_get():
     """
     Версия для GET запросов (для PuzzleBot)
-    Возвращает простой текст со ссылкой на оплату в формате: message Ваша ссылка на оплату: {ссылка}
+    Возвращает простой текст со ссылкой на оплату в формате: Ваша ссылка на оплату: {ссылка}
     """
     # ЛОГИРУЕМ ВСЕ ДЕТАЛИ ЗАПРОСА
     logger.info("=" * 50)
@@ -101,11 +101,11 @@ def create_invoice_get():
             if payment_url:
                 logger.info(f"УСПЕШНО: возвращаем ссылку: {payment_url}")
                 # Возвращаем простой текст в формате для PuzzleBot
-                response_text = f"message Ваша ссылка на оплату: {payment_url}"
+                response_text = f" Ваша ссылка на оплату: {payment_url}"
                 return make_response(response_text, 200, {'Content-Type': 'text/plain; charset=utf-8'})
             else:
                 logger.error("В ответе Lpay нет paymentUrl")
-                return make_response("message Ошибка: в ответе платежной системы нет ссылки", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+                return make_response(" Ошибка: в ответе платежной системы нет ссылки", 500, {'Content-Type': 'text/plain; charset=utf-8'})
         
         # Ошибка No available traders
         if "No available traders" in str(result):
