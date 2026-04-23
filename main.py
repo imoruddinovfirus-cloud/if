@@ -28,13 +28,23 @@ def after_request(response):
     response.headers.add('Access-Control-Max-Age', '3600')
     return response
 
-@app.route('/create_invoice_get', methods=['GET'])
+@app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    external_id = request.args.get('externalId')
+    from flask import make_response, jsonify
+    
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', '*')
+        response.headers.add('Access-Control-Allow-Methods', '*')
+        return response
+    
     amount = request.args.get('amount', 20, type=int)
+    external_id = request.args.get('externalId')
+    description = request.args.get('description', 'VPN payment')
     
     if not external_id:
-        return "❌ Ошибка: externalId не указан"
+        return jsonify({"status": "error", "message": "externalId is required"}), 400
     
     headers = {
         "x-api-key": API_KEY,
@@ -45,29 +55,37 @@ def create_invoice_get():
     payload = {
         "amount": amount,
         "externalId": external_id,
-        "description": "VPN payment"
+        "description": description
     }
     
     try:
-        response = requests.post(
+        response_lpay = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
             json=payload,
             timeout=30
         )
         
-        result = response.json()
+        result = response_lpay.json()
         
-        if response.status_code == 201:
-            # Возвращаем ссылку на бота с start-параметром
-            bot_username = "ВАШ_ЮЗЕРНЕЙМ_БОТА"  # Замени на свой
-            start_link = f"https://t.me/{bot_username}?start=check_{external_id}"
-            return start_link
+        if response_lpay.status_code == 201:
+            payment_url = result.get('paymentUrl')
+            # Возвращаем JSON, который PuzzleBot принимает как успех
+            return jsonify({
+                "status": "success",
+                "paymentUrl": payment_url
+            }), 200
         else:
-            return f"❌ Ошибка: {result.get('message', 'Неизвестная ошибка')}"
+            return jsonify({
+                "status": "error",
+                "message": result.get('message', 'Unknown error')
+            }), 400
             
     except Exception as e:
-        return "❌ Внутренняя ошибка"
+        return jsonify({
+            "status": "error",
+            "message": "Server error"
+        }), 500
         
 @app.route('/test_cors', methods=['GET', 'OPTIONS', 'POST'])
 def test_cors():
