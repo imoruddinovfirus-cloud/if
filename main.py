@@ -101,7 +101,7 @@ def create_invoice_get():
         if "No available traders" in str(result):
             response_data = {
                 "success": False,
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.",
+                "message": "❌ Платёжный сервис временно недоступен. Попробуйте 2-3 минуты.",
                 "error": "no_traders"
             }
             logger.warning(f"НЕТ ТРЕЙДЕРОВ: {response_data}")
