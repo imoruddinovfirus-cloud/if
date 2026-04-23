@@ -265,7 +265,7 @@ def check_payment_text():
     }
     
     try:
-        # Ищем инвойс по userId (который используется как externalId)
+        # Ищем инвойс по userId
         response = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={user_id}",
             headers=headers,
