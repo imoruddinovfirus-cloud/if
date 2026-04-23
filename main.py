@@ -205,6 +205,8 @@ def check_status():
 # @app.route('/health', methods=['GET'])  # Этот метод уже есть, не удаляйте его
 @app.route('/check_payment', methods=['GET', 'OPTIONS'])
 def check_payment():
+    from flask import make_response, jsonify
+    
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -215,7 +217,7 @@ def check_payment():
     external_id = request.args.get('externalId')
     
     if not external_id:
-        return "❌ Ошибка: externalId не указан"
+        return jsonify({"result": "❌ Ошибка: externalId не указан"})
     
     headers = {
         "x-api-key": API_KEY,
@@ -237,15 +239,16 @@ def check_payment():
             status = invoice.get('status')
             
             if status == 'confirmed':
-                return "✅ Оплата подтверждена!"
+                return jsonify({"result": "✅ Оплата подтверждена!"})
             elif status == 'expired':
-                return "❌ Время оплаты вышло. Попробуйте снова."
+                return jsonify({"result": "❌ Время оплаты вышло. Попробуйте снова."})
             elif status == 'cancelled':
-                return "❌ Платёж отменён."
+                return jsonify({"result": "❌ Платёж отменён."})
             else:
-                return "⏳ Оплата ещё не поступила. Подождите или проверьте позже."
+                return jsonify({"result": f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."})
         else:
-            return "❌ Инвойс не найден. Попробуйте создать новый платёж."
+            return jsonify({"result": "❌ Инвойс не найден. Попробуйте создать новый платёж."})
             
     except Exception as e:
-        return "❌ Ошибка при проверке. Попробуйте позже."
+        return jsonify({"result": "❌ Ошибка при проверке. Попробуйте позже."})
+
