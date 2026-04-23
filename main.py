@@ -203,52 +203,48 @@ def check_status():
         return "❌ Ошибка при проверке. Попробуйте позже."
 
 # @app.route('/health', methods=['GET'])  # Этот метод уже есть, не удаляйте его
-@app.route('/check_payment', methods=['GET', 'OPTIONS'])
-def check_payment():
-    from flask import make_response, jsonify
-    
-    if request.method == 'OPTIONS':
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', '*')
-        response.headers.add('Access-Control-Allow-Methods', '*')
-        return response
+@app.route('/check_payment_text', methods=['GET'])
+def check_payment_text():
+    from flask import make_response
     
     external_id = request.args.get('externalId')
     
     if not external_id:
-        return jsonify({"result": "❌ Ошибка: externalId не указан"})
+        resp = make_response("❌ Ошибка: externalId не указан")
+        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        return resp
     
     headers = {
         "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET,
-        "Content-Type": "application/json"
+        "x-api-secret": API_SECRET
     }
     
     try:
         response = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
             headers=headers,
-            timeout=30
+            timeout=10
         )
+        data = response.json()
         
-        result = response.json()
-        
-        if response.status_code == 200 and result.get('items'):
-            invoice = result['items'][0]
-            status = invoice.get('status')
-            
+        if response.status_code == 200 and data.get('items'):
+            status = data['items'][0].get('status')
             if status == 'confirmed':
-                return jsonify({"result": "✅ Оплата подтверждена!"})
+                text = "✅ Оплата подтверждена!"
             elif status == 'expired':
-                return jsonify({"result": "❌ Время оплаты вышло. Попробуйте снова."})
+                text = "❌ Время оплаты вышло."
             elif status == 'cancelled':
-                return jsonify({"result": "❌ Платёж отменён."})
+                text = "❌ Платёж отменён."
             else:
-                return jsonify({"result": f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."})
+                text = f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."
         else:
-            return jsonify({"result": "❌ Инвойс не найден. Попробуйте создать новый платёж."})
+            text = "❌ Инвойс не найден. Нажмите 'Оплатить' сначала."
             
+        resp = make_response(text)
+        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        return resp
+        
     except Exception as e:
-        return jsonify({"result": "❌ Ошибка при проверке. Попробуйте позже."})
-
+        resp = make_response("❌ Ошибка соединения с платёжным сервером.")
+        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        return resp
