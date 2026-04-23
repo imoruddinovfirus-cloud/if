@@ -158,93 +158,47 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 # ... (остальной код)
 
-@app.route('/check_status', methods=['GET'])
-def check_status():
-    # Получаем ID пользователя из запроса
-    user_id = request.args.get('userId')
-    if not user_id:
-        return "❌ Ошибка: userId не указан"
-
-    # Формируем externalId так же, как при создании инвойса
-    # Используем ТЕКУЩИЙ timestamp, который был при создании. Для простоты сначала будем искать по user_id
-    headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET,
-        "Content-Type": "application/json"
-    }
-
-    # Важно! Lpay API позволяет фильтровать инвойсы по externalId.
-    # Мы ищем ВСЕ инвойсы пользователя и берем последний.
-    try:
-        response = requests.get(
-            f"https://api.lpayapp.xyz/invoices",
-            headers=headers,
-            params={'externalId': f'fin_{user_id}'}, # Ищем по user_id
-            timeout=30
-        )
-        result = response.json()
-        
-        if response.status_code == 200 and result.get('items'):
-            # Берем самый новый инвойс
-            latest_invoice = result['items'][-1]
-            status = latest_invoice.get('status')
-            if status == 'confirmed':
-                return "✅ Оплата подтверждена! Ваш ключ: ..." # Здесь позже добавите выдачу ключа
-            elif status == 'expired':
-                return "❌ Время оплаты вышло. Попробуйте снова."
-            elif status == 'cancelled':
-                return "❌ Платёж отменён."
-            else:
-                return "⏳ Оплата ещё не поступила. Подождите или проверьте позже."
-        else:
-            return "❌ Инвойс не найден. Нажмите 'Оплатить' сначала."
-            
-    except Exception as e:
-        return "❌ Ошибка при проверке. Попробуйте позже."
-
-# @app.route('/health', methods=['GET'])  # Этот метод уже есть, не удаляйте его
-@app.route('/check_payment_text', methods=['GET'])
-def check_payment_text():
+@app.route('/check_payment', methods=['GET'])
+def check_payment():
     from flask import make_response
     
-    external_id = request.args.get('externalId')
+    # Получаем externalId из запроса
+    ext_id = request.args.get('externalId')
     
-    if not external_id:
-        resp = make_response("❌ Ошибка: externalId не указан")
-        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        return resp
+    if not ext_id:
+        return make_response("❌ Ошибка: ID платежа не указан")
     
+    # Твои ключи к LPAY
     headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET
+        "x-api-key": "06ff2425-dcf0-42ed-85d3-419bb4bbe927",
+        "x-api-secret": "8e280987-ebba-4c95-af1c-90934e372774"
     }
     
     try:
-        response = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+        # Запрос к API Lpay
+        resp = requests.get(
+            f"https://api.lpayapp.xyz/invoices?externalId={ext_id}",
             headers=headers,
             timeout=10
         )
-        data = response.json()
+        data = resp.json()
         
-        if response.status_code == 200 and data.get('items'):
+        # Анализируем статус платежа
+        if resp.status_code == 200 and data.get('items'):
             status = data['items'][0].get('status')
             if status == 'confirmed':
                 text = "✅ Оплата подтверждена!"
             elif status == 'expired':
-                text = "❌ Время оплаты вышло."
+                text = "❌ Время оплаты вышло. Попробуйте снова."
             elif status == 'cancelled':
                 text = "❌ Платёж отменён."
             else:
-                text = f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."
+                text = f"⏳ Статус: {status}. Ожидаем оплаты..."
         else:
-            text = "❌ Инвойс не найден. Нажмите 'Оплатить' сначала."
-            
-        resp = make_response(text)
-        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        return resp
+            text = "❌ Платёж не найден. Попробуйте создать новый."
         
-    except Exception as e:
-        resp = make_response("❌ Ошибка соединения с платёжным сервером.")
-        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        return resp
+        # Возвращаем ТОЛЬКО ТЕКСТ
+        return make_response(text)
+        
+    except Exception:
+        return make_response("❌ Ошибка соединения с сервером оплаты.")
