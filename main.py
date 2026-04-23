@@ -81,51 +81,88 @@ def create_invoice_get():
     except Exception as e:
         return "Техническая ошибка"
 
-@app.route('/check_payment', methods=['GET'])
-def check_payment():
+@app.route('/create_invoice_get', methods=['GET'])
+def create_invoice_get():
     """
-    Проверка статуса платежа
-    Возвращает простой текст для PuzzleBot в формате: message {текст}
+    Улучшенная версия с детальным логированием и тестовым режимом
     """
-    ext_id = request.args.get('externalId')
-    if not ext_id:
-        return make_response(" Ошибка: не указан externalId", 400, {'Content-Type': 'text/plain; charset=utf-8'})
-
-    # Заголовки для Lpay
+    # Включить тестовый режим через параметр ?test=true
+    test_mode = request.args.get('test', 'false').lower() == 'true'
+    
+    if test_mode:
+        # ТЕСТОВЫЙ РЕЖИМ: всегда возвращаем успешную ссылку
+        test_url = "https://pay.lpayapp.xyz/test-payment-link-123"
+        print(f"ТЕСТОВЫЙ РЕЖИМ: возвращаем {test_url}")
+        return test_url
+    
+    # Получаем параметры из URL
+    amount = request.args.get('amount', 20, type=int)
+    external_id = request.args.get('externalId', f'test_{int(time.time())}')
+    description = request.args.get('description', 'VPN payment')
+    
+    print(f"=== ЗАПРОС К /create_invoice_get ===")
+    print(f"Параметры: amount={amount}, externalId={external_id}, description={description}")
+    print(f"Заголовки: {dict(request.headers)}")
+    
+    # ПОДГОТАВЛИВАЕМ ЗАПРОС К LPAY
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
         "Content-Type": "application/json"
     }
     
+    payload = {
+        "amount": amount,
+        "externalId": external_id,
+        "description": description
+    }
+    
+    print(f"Запрос к Lpay: {payload}")
+    
     try:
-        # Запрос к API Lpay
-        resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={ext_id}",
+        response = requests.post(
+            "https://api.lpayapp.xyz/invoices",
             headers=headers,
-            timeout=15
+            json=payload,
+            timeout=30
         )
-        data = resp.json()
         
-        if resp.status_code == 200 and data.get('items'):
-            status = data['items'][0].get('status')
-            if status == 'confirmed':
-                msg = " ОПЛАЧЕНО! Ваш VPN ключ будет выдан."
-            elif status == 'expired':
-                msg = " Время оплаты вышло. Пожалуйста, создайте новый платёж."
-            elif status == 'cancelled':
-                msg = " Платёж отменён."
+        print(f"Ответ Lpay: статус {response.status_code}")
+        print(f"Ответ Lpay: заголовки {dict(response.headers)}")
+        
+        # Пытаемся распарсить JSON
+        try:
+            result = response.json()
+            print(f"Ответ Lpay JSON: {result}")
+        except:
+            result = {"raw_text": response.text}
+            print(f"Ответ Lpay текст: {response.text}")
+        
+        if response.status_code == 201:
+            payment_url = result.get("paymentUrl")
+            if payment_url:
+                print(f"УСПЕХ: paymentUrl={payment_url}")
+                # Возвращаем только ссылку
+                return payment_url
             else:
-                msg = f" Платёж не подтверждён. Статус: {status}. Попробуйте позже."
-        else:
-            msg = " Платёж не найден. Проверьте ссылку или создайте новый."
-            
-        # Возвращаем только текст в формате для PuzzleBot
-        return make_response(msg, 200, {'Content-Type': 'text/plain; charset=utf-8'})
+                print(f"ОШИБКА: нет paymentUrl в ответе")
+                return f"Ошибка: нет ссылки в ответе Lpay. Ответ: {result}"
         
+        # Обработка ошибок
+        print(f"ОШИБКА Lpay: статус {response.status_code}")
+        return f"Ошибка Lpay (статус {response.status_code}): {result}"
+        
+    except requests.exceptions.Timeout:
+        print("ТАЙМАУТ при запросе к Lpay")
+        return "Таймаут при запросе к платежной системе"
+    except requests.exceptions.ConnectionError:
+        print("ОШИБКА ПОДКЛЮЧЕНИЯ к Lpay")
+        return "Ошибка подключения к платежной системе"
     except Exception as e:
-        logger.error(f"Ошибка при проверке платежа: {str(e)}")
-        return make_response(" Ошибка при проверке платежа. Сервер Lpay может быть недоступен.", 500, {'Content-Type': 'text/plain; charset=utf-8'})
+        print(f"НЕИЗВЕСТНАЯ ОШИБКА: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return f"Неизвестная ошибка: {str(e)}"
 
 @app.route('/test_cors', methods=['GET', 'OPTIONS', 'POST'])
 def test_cors():
