@@ -251,40 +251,47 @@ def check_payment():
         return "❌ Ошибка при проверке. Попробуйте позже."
 @app.route('/check_payment_text', methods=['GET'])
 def check_payment_text():
-    """Возвращает ТОЛЬКО текстовое сообщение для PuzzleBot."""
-    from flask import request
-    import requests
-
-    external_id = request.args.get('externalId')
-    if not external_id:
-        return "Ошибка: нет externalId"
-
+    from flask import make_response
+    
+    user_id = request.args.get('userId')
+    if not user_id:
+        resp = make_response("❌ Ошибка: userId не указан")
+        resp.headers['Content-Type'] = 'text/plain'
+        return resp
+    
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET
     }
-
+    
     try:
-        # Запрос к API Lpay
-        resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+        # Ищем инвойс по userId (который используется как externalId)
+        response = requests.get(
+            f"https://api.lpayapp.xyz/invoices?externalId={user_id}",
             headers=headers,
             timeout=10
         )
-        data = resp.json()
-
-        if resp.status_code == 200 and data.get('items'):
-            status = data['items'][0].get('status')
+        data = response.json()
+        
+        if response.status_code == 200 and data.get('items'):
+            invoice = data['items'][0]
+            status = invoice.get('status')
             if status == 'confirmed':
-                return "✅ Оплата подтверждена!"
+                text = "✅ Оплата подтверждена!"
             elif status == 'expired':
-                return "❌ Время оплаты вышло."
+                text = "❌ Время оплаты вышло."
             elif status == 'cancelled':
-                return "❌ Платёж отменён."
+                text = "❌ Платёж отменён."
             else:
-                return f"⏳ Ожидаем оплату... (статус: {status})"
+                text = f"⏳ Ожидаем оплату... (статус: {status})"
         else:
-            return "❌ Платёж не найден."
-
-    except Exception:
-        return "❌ Ошибка соединения с платёжным сервером."
+            text = "❌ Платёж не найден. Нажмите 'Оплатить' сначала."
+            
+        resp = make_response(text)
+        resp.headers['Content-Type'] = 'text/plain'
+        return resp
+        
+    except Exception as e:
+        resp = make_response("❌ Ошибка соединения с платёжным сервером.")
+        resp.headers['Content-Type'] = 'text/plain'
+        return resp
