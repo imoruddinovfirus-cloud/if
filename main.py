@@ -205,7 +205,6 @@ def check_status():
 # @app.route('/health', methods=['GET'])  # Этот метод уже есть, не удаляйте его
 @app.route('/check_payment', methods=['GET', 'OPTIONS'])
 def check_payment():
-    # Обработка OPTIONS для CORS
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -217,9 +216,7 @@ def check_payment():
     
     if not external_id:
         return jsonify({
-            "success": False,
-            "message": "❌ Ошибка: externalId не указан",
-            "status": "error"
+            "result": "❌ Ошибка: externalId не указан"
         })
     
     headers = {
@@ -229,7 +226,6 @@ def check_payment():
     }
     
     try:
-        # Ищем инвойс по externalId
         response = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
             headers=headers,
@@ -243,40 +239,15 @@ def check_payment():
             status = invoice.get('status')
             
             if status == 'confirmed':
-                return jsonify({
-                    "success": True,
-                    "message": "✅ Оплата подтверждена!",
-                    "status": "confirmed"
-                })
+                return jsonify({"result": "✅ Оплата подтверждена!"})
             elif status == 'expired':
-                return jsonify({
-                    "success": False,
-                    "message": "❌ Время оплаты вышло. Попробуйте снова.",
-                    "status": "expired"
-                })
+                return jsonify({"result": "❌ Время оплаты вышло. Попробуйте снова."})
             elif status == 'cancelled':
-                return jsonify({
-                    "success": False,
-                    "message": "❌ Платёж отменён.",
-                    "status": "cancelled"
-                })
+                return jsonify({"result": "❌ Платёж отменён."})
             else:
-                return jsonify({
-                    "success": False,
-                    "message": f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже.",
-                    "status": status
-                })
+                return jsonify({"result": f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."})
         else:
-            return jsonify({
-                "success": False,
-                "message": "❌ Инвойс не найден. Попробуйте создать новый платёж.",
-                "status": "not_found"
-            })
+            return jsonify({"result": "❌ Инвойс не найден. Попробуйте создать новый платёж."})
             
     except Exception as e:
-        logger.error(f"Ошибка в check_payment: {str(e)}")
-        return jsonify({
-            "success": False,
-            "message": "❌ Ошибка при проверке. Попробуйте позже.",
-            "status": "error"
-        })
+        return jsonify({"result": "❌ Ошибка при проверке. Попробуйте позже."})
