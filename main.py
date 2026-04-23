@@ -76,8 +76,9 @@ def create_invoice_get():
         
         if resp.status_code == 201:
             payment_url = result.get('paymentUrl')
-            # Возвращаем ТОЛЬКО ссылку (простой текст)
-            response = make_response(payment_url)
+            # Возвращаем текст + ссылку
+            response_text = f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
+            response = make_response(response_text)
             response.headers.add('Access-Control-Allow-Origin', '*')
             response.headers['Content-Type'] = 'text/plain; charset=utf-8'
             return response, 200
@@ -93,14 +94,6 @@ def create_invoice_get():
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers['Content-Type'] = 'text/plain; charset=utf-8'
         return response, 500
-        
-@app.route('/health', methods=['GET', 'OPTIONS'])
-def health():
-    if request.method == 'OPTIONS':
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
-    return "OK"
 
 @app.route('/test_cors', methods=['GET', 'OPTIONS', 'POST'])
 def test_cors():
