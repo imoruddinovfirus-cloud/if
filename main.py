@@ -30,7 +30,7 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    from flask import make_response
+    from flask import make_response, jsonify
     
     if request.method == 'OPTIONS':
         response = make_response()
@@ -44,9 +44,10 @@ def create_invoice_get():
     description = request.args.get('description', 'VPN payment')
     
     if not external_id:
-        resp = make_response("ERROR: externalId is required")
-        resp.headers['Content-Type'] = 'text/plain'
-        return resp
+        return jsonify({
+            "status": "error",
+            "message": "externalId is required"
+        }), 400
     
     headers = {
         "x-api-key": API_KEY,
@@ -72,21 +73,23 @@ def create_invoice_get():
         
         if response.status_code == 201:
             payment_url = result.get('paymentUrl')
-            # Возвращаем только ссылку, чистый текст
-            resp = make_response(payment_url)
-            resp.headers['Content-Type'] = 'text/plain'
-            return resp
+            # Возвращаем JSON, который PuzzleBot точно поймёт
+            return jsonify({
+                "status": "success",
+                "paymentUrl": payment_url,
+                "message": "Ссылка создана"
+            }), 200
         else:
-            # Ошибка — возвращаем текст
-            error_msg = result.get('message', 'Unknown error')
-            resp = make_response(f"ERROR: {error_msg}")
-            resp.headers['Content-Type'] = 'text/plain'
-            return resp
+            return jsonify({
+                "status": "error",
+                "message": result.get('message', 'Unknown error')
+            }), 400
             
     except Exception as e:
-        resp = make_response("ERROR: server error")
-        resp.headers['Content-Type'] = 'text/plain'
-        return resp
+        return jsonify({
+            "status": "error",
+            "message": "Server error"
+        }), 500
 
 @app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
