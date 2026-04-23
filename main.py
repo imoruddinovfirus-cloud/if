@@ -82,7 +82,7 @@ def create_invoice_get():
         if "No available traders" in str(result):
             response_data = {
                 "success": False,
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте 2-3 минуты.",
+                "message": "❌ Платёжный сервис временно недоступен. Попробуйте через 2-3 минуты.",
                 "error": "no_traders"
             }
             return jsonify(response_data)
