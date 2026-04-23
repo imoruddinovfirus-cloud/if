@@ -30,40 +30,28 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    """
-    Версия для GET запросов (для PuzzleBot)
-    """
-    # ЛОГИРУЕМ ВСЕ ДЕТАЛИ ЗАПРОСА
-    logger.info("=" * 50)
-    logger.info(f"МЕТОД: {request.method}")
-    logger.info(f"URL: {request.url}")
-    logger.info(f"ЗАГОЛОВКИ: {dict(request.headers)}")
-    logger.info(f"АРГУМЕНТЫ: {request.args}")
-    logger.info(f"USER-AGENT: {request.user_agent}")
-    logger.info("=" * 50)
+    from flask import make_response
     
-    # ОБРАБОТКА OPTIONS ДЛЯ CORS
     if request.method == 'OPTIONS':
-        logger.info("ОБРАБОТКА OPTIONS ЗАПРОСА ДЛЯ CORS")
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', '*')
         response.headers.add('Access-Control-Allow-Methods', '*')
         return response
     
-    # Получаем параметры из URL
-    amount = request.args.get('amount', 500, type=int)
-    external_id = request.args.get('externalId', f'test_{int(time.time())}')
+    amount = request.args.get('amount', 20, type=int)
+    external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
-    logger.info(f"ПАРАМЕТРЫ: amount={amount}, externalId={external_id}, description={description}")
+    if not external_id:
+        resp = make_response("ERROR: externalId is required")
+        resp.headers['Content-Type'] = 'text/plain'
+        return resp
     
-    # ПОДГОТАВЛИВАЕМ ЗАПРОС К LPAY
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
-        "Content-Type": "application/json",
-        "User-Agent": str(request.user_agent)  # Передаем User-Agent от клиента
+        "Content-Type": "application/json"
     }
     
     payload = {
@@ -73,8 +61,6 @@ def create_invoice_get():
     }
     
     try:
-        logger.info(f"ОТПРАВКА В LPAY: {payload}")
-        
         response = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
@@ -83,47 +69,24 @@ def create_invoice_get():
         )
         
         result = response.json()
-        logger.info(f"ОТВЕТ LPAY: status={response.status_code}, result={result}")
         
-        # Успех — возвращаем ссылку
         if response.status_code == 201:
-            payment_url = result.get("paymentUrl")
-            response_data = {
-                "success": True,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.",
-                "paymentUrl": payment_url,
-                "invoiceId": result.get("invoiceId"),
-                "externalId": external_id
-            }
-            logger.info(f"УСПЕШНЫЙ ОТВЕТ: {response_data}")
-            return jsonify(response_data)
-        
-        # Ошибка No available traders
-        if "No available traders" in str(result):
-            response_data = {
-                "success": False,
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.",
-                "error": "no_traders"
-            }
-            logger.warning(f"НЕТ ТРЕЙДЕРОВ: {response_data}")
-            return jsonify(response_data)
-        
-        # Любая другая ошибка
-        response_data = {
-            "success": False,
-            "message": f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}",
-            "error": "lpay_error"
-        }
-        logger.error(f"ОШИБКА LPAY: {response_data}")
-        return jsonify(response_data)
-        
+            payment_url = result.get('paymentUrl')
+            # Возвращаем только ссылку, чистый текст
+            resp = make_response(payment_url)
+            resp.headers['Content-Type'] = 'text/plain'
+            return resp
+        else:
+            # Ошибка — возвращаем текст
+            error_msg = result.get('message', 'Unknown error')
+            resp = make_response(f"ERROR: {error_msg}")
+            resp.headers['Content-Type'] = 'text/plain'
+            return resp
+            
     except Exception as e:
-        logger.error(f"ИСКЛЮЧЕНИЕ: {str(e)}", exc_info=True)
-        return jsonify({
-            "success": False,
-            "message": "❌ Техническая ошибка. Попробуйте позже.",
-            "error": "server_error"
-        })
+        resp = make_response("ERROR: server error")
+        resp.headers['Content-Type'] = 'text/plain'
+        return resp
 
 @app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
