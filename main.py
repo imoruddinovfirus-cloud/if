@@ -3,6 +3,7 @@ from flask_cors import CORS
 import requests
 import time
 import logging
+import os
 
 app = Flask(__name__)
 
@@ -13,8 +14,9 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
-API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
+# Ключи API Lpay (в продакшене используйте переменные окружения)
+API_KEY = os.environ.get('LPAY_API_KEY', "06ff2425-dcf0-42ed-85d3-419bb4bbe927")
+API_SECRET = os.environ.get('LPAY_API_SECRET', "8e280987-ebba-4c95-af1c-90934e372774")
 
 @app.after_request
 def after_request(response):
@@ -27,6 +29,13 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     response.headers.add('Access-Control-Max-Age', '3600')
     return response
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Healthcheck эндпоинт для Railway
+    """
+    return make_response("OK", 200, {'Content-Type': 'text/plain; charset=utf-8'})
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
@@ -180,4 +189,6 @@ def test_cors():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Используем порт из переменной окружения или 5000 по умолчанию
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
