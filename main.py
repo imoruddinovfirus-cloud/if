@@ -156,6 +156,53 @@ def test_cors():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+# ... (остальной код)
+
+@app.route('/check_status', methods=['GET'])
+def check_status():
+    # Получаем ID пользователя из запроса
+    user_id = request.args.get('userId')
+    if not user_id:
+        return "❌ Ошибка: userId не указан"
+
+    # Формируем externalId так же, как при создании инвойса
+    # Используем ТЕКУЩИЙ timestamp, который был при создании. Для простоты сначала будем искать по user_id
+    headers = {
+        "x-api-key": API_KEY,
+        "x-api-secret": API_SECRET,
+        "Content-Type": "application/json"
+    }
+
+    # Важно! Lpay API позволяет фильтровать инвойсы по externalId.
+    # Мы ищем ВСЕ инвойсы пользователя и берем последний.
+    try:
+        response = requests.get(
+            f"https://api.lpayapp.xyz/invoices",
+            headers=headers,
+            params={'externalId': f'fin_{user_id}'}, # Ищем по user_id
+            timeout=30
+        )
+        result = response.json()
+        
+        if response.status_code == 200 and result.get('items'):
+            # Берем самый новый инвойс
+            latest_invoice = result['items'][-1]
+            status = latest_invoice.get('status')
+            if status == 'confirmed':
+                return "✅ Оплата подтверждена! Ваш ключ: ..." # Здесь позже добавите выдачу ключа
+            elif status == 'expired':
+                return "❌ Время оплаты вышло. Попробуйте снова."
+            elif status == 'cancelled':
+                return "❌ Платёж отменён."
+            else:
+                return "⏳ Оплата ещё не поступила. Подождите или проверьте позже."
+        else:
+            return "❌ Инвойс не найден. Нажмите 'Оплатить' сначала."
+            
+    except Exception as e:
+        return "❌ Ошибка при проверке. Попробуйте позже."
+
+# @app.route('/health', methods=['GET'])  # Этот метод уже есть, не удаляйте его
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
