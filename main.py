@@ -211,31 +211,31 @@ def check_payment():
         response.headers.add('Access-Control-Allow-Headers', '*')
         response.headers.add('Access-Control-Allow-Methods', '*')
         return response
-
+    
     external_id = request.args.get('externalId')
-
+    
     if not external_id:
         return "❌ Ошибка: externalId не указан"
-
+    
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
         "Content-Type": "application/json"
     }
-
+    
     try:
         response = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
             headers=headers,
             timeout=30
         )
-
+        
         result = response.json()
-
+        
         if response.status_code == 200 and result.get('items'):
             invoice = result['items'][0]
             status = invoice.get('status')
-
+            
             if status == 'confirmed':
                 return "✅ Оплата подтверждена!"
             elif status == 'expired':
@@ -243,55 +243,9 @@ def check_payment():
             elif status == 'cancelled':
                 return "❌ Платёж отменён."
             else:
-                return f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."
+                return "⏳ Оплата ещё не поступила. Подождите или проверьте позже."
         else:
-            return "❌ Инвойс не найден. Нажмите 'Оплатить' сначала."
-
+            return "❌ Инвойс не найден. Попробуйте создать новый платёж."
+            
     except Exception as e:
         return "❌ Ошибка при проверке. Попробуйте позже."
-@app.route('/check_payment_text', methods=['GET'])
-def check_payment_text():
-    from flask import make_response
-    
-    user_id = request.args.get('userId')
-    if not user_id:
-        resp = make_response("❌ Ошибка: userId не указан")
-        resp.headers['Content-Type'] = 'text/plain'
-        return resp
-    
-    headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET
-    }
-    
-    try:
-        # Ищем инвойс по userId
-        response = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={user_id}",
-            headers=headers,
-            timeout=10
-        )
-        data = response.json()
-        
-        if response.status_code == 200 and data.get('items'):
-            invoice = data['items'][0]
-            status = invoice.get('status')
-            if status == 'confirmed':
-                text = "✅ Оплата подтверждена!"
-            elif status == 'expired':
-                text = "❌ Время оплаты вышло."
-            elif status == 'cancelled':
-                text = "❌ Платёж отменён."
-            else:
-                text = f"⏳ Ожидаем оплату... (статус: {status})"
-        else:
-            text = "❌ Платёж не найден. Нажмите 'Оплатить' сначала."
-            
-        resp = make_response(text)
-        resp.headers['Content-Type'] = 'text/plain'
-        return resp
-        
-    except Exception as e:
-        resp = make_response("❌ Ошибка соединения с платёжным сервером.")
-        resp.headers['Content-Type'] = 'text/plain'
-        return resp
