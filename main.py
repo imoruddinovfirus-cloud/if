@@ -204,41 +204,30 @@ def check_status():
 # @app.route('/health', methods=['GET'])  # Этот метод уже есть, не удаляйте его
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
-    external_id = request.args.get('externalId')
+    from flask import make_response
     
+    external_id = request.args.get('externalId')
     if not external_id:
-        return "❌ Ошибка: externalId не указан"
+        return make_response("error: no externalId")
     
     headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET,
-        "Content-Type": "application/json"
+        "x-api-key": "06ff2425-dcf0-42ed-85d3-419bb4bbe927",
+        "x-api-secret": "8e280987-ebba-4c95-af1c-90934e372774"
     }
     
     try:
-        # Ищем инвойс по externalId
-        response = requests.get(
+        resp = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
             headers=headers,
-            timeout=30
+            timeout=10
         )
+        data = resp.json()
         
-        result = response.json()
-        
-        if response.status_code == 200 and result.get('items'):
-            invoice = result['items'][0]
-            status = invoice.get('status')
-            
-            if status == 'confirmed':
-                return "✅ Оплата подтверждена!"
-            elif status == 'expired':
-                return "❌ Время оплаты вышло. Попробуйте снова."
-            elif status == 'cancelled':
-                return "❌ Платёж отменён."
-            else:
-                return "⏳ Оплата ещё не поступила. Подождите или проверьте позже."
+        if resp.status_code == 200 and data.get('items'):
+            status = data['items'][0].get('status')
+            # Возвращаем ТОЛЬКО статус: pending, assigned, confirmed, expired, cancelled
+            return make_response(status)
         else:
-            return "❌ Инвойс не найден. Попробуйте создать новый платёж."
-            
+            return make_response("not_found")
     except Exception as e:
-        return "❌ Ошибка при проверке. Попробуйте позже."
+        return make_response("error")
