@@ -30,24 +30,27 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    from flask import make_response, jsonify
+    from flask import make_response
     
+    # Обработка предварительного запроса OPTIONS
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', '*')
-        response.headers.add('Access-Control-Allow-Methods', '*')
-        return response
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, x-api-key, x-api-secret')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response, 200
     
     amount = request.args.get('amount', 20, type=int)
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
-    if not external_id:
-        return jsonify({
-            "status": "error",
-            "message": "externalId is required"
-        }), 400
+    # Если externalId не передан или равен "fin_" (пустой), выдаём ошибку
+    if not external_id or external_id == 'fin_':
+        response = make_response("❌ Ошибка: не указан ID пользователя")
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        return response, 400
     
     headers = {
         "x-api-key": API_KEY,
@@ -62,35 +65,35 @@ def create_invoice_get():
     }
     
     try:
-        response = requests.post(
+        resp = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
             json=payload,
             timeout=30
         )
         
-        result = response.json()
+        result = resp.json()
         
-        if response.status_code == 201:
+        if resp.status_code == 201:
             payment_url = result.get('paymentUrl')
-            # Возвращаем JSON, который PuzzleBot точно поймёт
-            return jsonify({
-                "status": "success",
-                "paymentUrl": payment_url,
-                "message": "Ссылка создана"
-            }), 200
+            # Возвращаем ТОЛЬКО ссылку (простой текст)
+            response = make_response(payment_url)
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            return response, 200
         else:
-            return jsonify({
-                "status": "error",
-                "message": result.get('message', 'Unknown error')
-            }), 400
+            error_msg = result.get('message', 'Неизвестная ошибка')
+            response = make_response(f"❌ Ошибка Lpay: {error_msg}")
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            return response, 400
             
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": "Server error"
-        }), 500
-
+        response = make_response("❌ Внутренняя ошибка сервера")
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        return response, 500
+        
 @app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
     if request.method == 'OPTIONS':
