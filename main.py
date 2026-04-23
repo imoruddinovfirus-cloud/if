@@ -211,43 +211,41 @@ def check_payment():
         response.headers.add('Access-Control-Allow-Headers', '*')
         response.headers.add('Access-Control-Allow-Methods', '*')
         return response
-    
+
     external_id = request.args.get('externalId')
-    
+
     if not external_id:
-        return jsonify({
-            "result": "❌ Ошибка: externalId не указан"
-        })
-    
+        return "❌ Ошибка: externalId не указан"
+
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
         "Content-Type": "application/json"
     }
-    
+
     try:
         response = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
             headers=headers,
             timeout=30
         )
-        
+
         result = response.json()
-        
+
         if response.status_code == 200 and result.get('items'):
             invoice = result['items'][0]
             status = invoice.get('status')
-            
+
             if status == 'confirmed':
-                return jsonify({"result": "✅ Оплата подтверждена!"})
+                return "✅ Оплата подтверждена!"
             elif status == 'expired':
-                return jsonify({"result": "❌ Время оплаты вышло. Попробуйте снова."})
+                return "❌ Время оплаты вышло. Попробуйте снова."
             elif status == 'cancelled':
-                return jsonify({"result": "❌ Платёж отменён."})
+                return "❌ Платёж отменён."
             else:
-                return jsonify({"result": f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."})
+                return f"⏳ Оплата ещё не поступила. Статус: {status}. Подождите или проверьте позже."
         else:
-            return jsonify({"result": "❌ Инвойс не найден. Попробуйте создать новый платёж."})
-            
+            return "❌ Инвойс не найден. Нажмите 'Оплатить' сначала."
+
     except Exception as e:
-        return jsonify({"result": "❌ Ошибка при проверке. Попробуйте позже."})
+        return "❌ Ошибка при проверке. Попробуйте позже."
