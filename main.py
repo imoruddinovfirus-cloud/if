@@ -162,16 +162,15 @@ if __name__ == '__main__':
 def check_payment():
     from flask import make_response
     
-    # Получаем externalId из запроса
     ext_id = request.args.get('externalId')
-    
     if not ext_id:
-        return make_response("❌ Ошибка: ID платежа не указан")
-    
-    # Твои ключи к LPAY
+        return make_response("❌ Ошибка: не указан externalId")
+
+    # Заголовки для Lpay
     headers = {
-        "x-api-key": "06ff2425-dcf0-42ed-85d3-419bb4bbe927",
-        "x-api-secret": "8e280987-ebba-4c95-af1c-90934e372774"
+        "x-api-key": API_KEY,
+        "x-api-secret": API_SECRET,
+        "Content-Type": "application/json"
     }
     
     try:
@@ -179,26 +178,25 @@ def check_payment():
         resp = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={ext_id}",
             headers=headers,
-            timeout=10
+            timeout=15
         )
         data = resp.json()
         
-        # Анализируем статус платежа
         if resp.status_code == 200 and data.get('items'):
             status = data['items'][0].get('status')
             if status == 'confirmed':
-                text = "✅ Оплата подтверждена!"
+                msg = "✅ ОПЛАЧЕНО! Ваш VPN ключ будет выдан."
             elif status == 'expired':
-                text = "❌ Время оплаты вышло. Попробуйте снова."
+                msg = "❌ Время оплаты вышло. Пожалуйста, создайте новый платёж."
             elif status == 'cancelled':
-                text = "❌ Платёж отменён."
+                msg = "❌ Платёж отменён."
             else:
-                text = f"⏳ Статус: {status}. Ожидаем оплаты..."
+                msg = f"⏳ Платёж не подтверждён. Статус: {status}. Попробуйте позже."
         else:
-            text = "❌ Платёж не найден. Попробуйте создать новый."
+            msg = "❌ Платёж не найден. Проверьте ссылку или создайте новый."
+            
+        # Возвращаем только текст (PuzzleBot его точно поймёт)
+        return make_response(msg)
         
-        # Возвращаем ТОЛЬКО ТЕКСТ
-        return make_response(text)
-        
-    except Exception:
-        return make_response("❌ Ошибка соединения с сервером оплаты.")
+    except Exception as e:
+        return make_response("❌ Ошибка при проверке платежа. Сервер Lpay может быть недоступен.")
