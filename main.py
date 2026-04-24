@@ -22,7 +22,7 @@ def save_payments(payments):
 
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    amount = 150  # фиксированная сумма
+    amount = 150
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
@@ -57,7 +57,7 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Твоя картинка на весь фон
+            # Картинка на весь фон, чёрный текст
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -74,13 +74,13 @@ def create_invoice_get():
                 font-family: Arial, sans-serif;
                 font-size: 2.5em;
                 line-height: 1.3;
-                color: white;
-                text-shadow: 2px 2px 4px black;
+                color: black;
+                font-weight: bold;
             ">
             <div>
                 ОРДЕР ГОТОВ<br>
                 СУММА: {amount} РУБ.<br>
-                ССЫЛКА: <a href="{payment_url}" style="color: yellow;">ОПЛАТИТЬ</a>
+                ССЫЛКА: <a href="{payment_url}" style="color: black; text-decoration: underline;">ОПЛАТИТЬ</a>
             </div>
             </div>"""
             
