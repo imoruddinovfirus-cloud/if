@@ -27,64 +27,23 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    if request.method == 'OPTIONS':
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
+    # ... (обработка OPTIONS) ...
 
+    # 1. БЕРЕМ externalId ИЗ ЗАПРОСА
+    external_id = request.args.get('externalId')
     amount = request.args.get('amount', 50, type=int)
     description = request.args.get('description', 'VPN payment')
+
+    # 2. Если externalId НЕ передан - ГЕНЕРИРУЕМ свой уникальный
+    if not external_id or external_id == 'fin_{{user_id}}':
+        external_id = f"fin_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+
+    # 3. СОХРАНЯЕМ externalId для этого пользователя (если передан userId)
     user_id = request.args.get('userId')
-    
-    # Генерируем уникальный externalId
-    unique_id = f"fin_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-    
-    headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET,
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "amount": amount,
-        "externalId": unique_id,
-        "description": description
-    }
-    
-    try:
-        response_lpay = requests.post(
-            "https://api.lpayapp.xyz/invoices",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        
-        result = response_lpay.json()
-        
-        if response_lpay.status_code == 201:
-            payment_url = result.get("paymentUrl")
-            
-            # СОХРАНЯЕМ ПОСЛЕДНИЙ EXTERNALID ДЛЯ ПОЛЬЗОВАТЕЛЯ
-            if user_id:
-                user_last_external_id[user_id] = unique_id
-                logger.info(f"Сохранён externalId {unique_id} для пользователя {user_id}")
-            
-            return jsonify({
-                "success": True,
-                "paymentUrl": payment_url,
-                "externalId": unique_id,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.\n\n🆔 Ваш ID платежа: {unique_id}"
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "message": f"❌ Ошибка: {result.get('message', 'Попробуйте другую сумму')}"
-            }), 400
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": "❌ Техническая ошибка. Попробуйте позже."
-        }), 500
+    if user_id and external_id:
+        user_last_external_id[user_id] = external_id
+
+    # ... (остальной код отправки запроса в Lpay) ...
 
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
