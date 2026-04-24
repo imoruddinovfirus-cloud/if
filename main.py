@@ -109,7 +109,4 @@ def check_payment():
 @app.route('/health', methods=['GET'])
 def health():
     return "OK"
-@app.route('/test_env', methods=['GET'])
-def test_env():
-    return f"API_KEY: {API_KEY is not None}, API_SECRET: {API_SECRET is not None}"
 
