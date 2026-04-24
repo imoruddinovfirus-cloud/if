@@ -95,7 +95,24 @@ def check_payment():
     payments = load_payments()
     invoice_id = payments.get(external_id)
     if not invoice_id:
-        return f"Ваш платёж не найден 😥"
+        return f"""<div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://i.ibb.co/20DD0N2s/Fba-VTc-Sz-D-x-GLM6-ZV26k-Omk-Eyq5-Rs-Tsw-ZWTWj-Nf9-VCh-L8f-W6l-YZ3-FIn-Rw-N3y-Yg-Z-yy-Zy-Xza-Aj-Kw-Ta-O.jpg');
+            background-size: cover;
+            background-position: center;
+            font-family: Arial, sans-serif;
+            font-size: 2.5em;
+            line-height: 1.3;
+            color: black;
+            font-weight: bold;
+            padding: 40px;
+        ">
+            Ваш платёж не найден 😥
+        </div>"""
     
     headers = {
         "x-api-key": API_KEY,
@@ -112,17 +129,31 @@ def check_payment():
             data = resp.json()
             status = data.get('status')
             if status == 'confirmed':
-                return "✅ Оплата подтверждена! Спасибо за покупку."
+                message = "✅ Оплата подтверждена! Спасибо за покупку."
             elif status == 'expired':
-                return "❌ Время на оплату вышло."
+                message = "❌ Время на оплату вышло."
             else:
-                return f"⏳ Статус: {status}. Ожидаем оплаты..."
+                message = f"⏳ Статус: {status}. Ожидаем оплаты..."
         else:
-            return "❌ Не удалось проверить статус платежа."
+            message = "❌ Не удалось проверить статус платежа."
     except Exception as e:
-        return f"❌ Ошибка: {str(e)}"
-
-@app.route('/health', methods=['GET'])
-def health():
-    return "OK"
-
+        message = f"❌ Ошибка: {str(e)}"
+    
+    return f"""<div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('https://i.ibb.co/20DD0N2s/Fba-VTc-Sz-D-x-GLM6-ZV26k-Omk-Eyq5-Rs-Tsw-ZWTWj-Nf9-VCh-L8f-W6l-YZ3-FIn-Rw-N3y-Yg-Z-yy-Zy-Xza-Aj-Kw-Ta-O.jpg');
+        background-size: cover;
+        background-position: center;
+        font-family: Arial, sans-serif;
+        font-size: 2.5em;
+        line-height: 1.3;
+        color: black;
+        font-weight: bold;
+        padding: 40px;
+    ">
+        {message}
+    </div>"""
