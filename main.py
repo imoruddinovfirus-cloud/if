@@ -5,8 +5,8 @@ import os
 
 app = Flask(__name__)
 
-API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
-API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
+API_KEY = os.getenv('LPAY_API_KEY')
+API_SECRET = os.getenv('LPAY_API_SECRET')
 
 PAYMENTS_FILE = "payments.json"
 
@@ -109,6 +109,7 @@ def check_payment():
 @app.route('/health', methods=['GET'])
 def health():
     return "OK"
+@app.route('/test_env', methods=['GET'])
+def test_env():
+    return f"API_KEY: {API_KEY is not None}, API_SECRET: {API_SECRET is not None}"
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
