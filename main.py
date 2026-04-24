@@ -57,15 +57,12 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            message = f"""<big><big><b>🎫 Счет на оплату</b>
-
+            # Текст с увеличенным размером (3 раза big) и столбиком
+            message = f"""<big><big><big>
 ✅ Успешно создан!
 💳 Сумма: {amount} руб.
-📝 Описание: {description}
 🔗 Ссылка: <a href="{payment_url}">Оплатить</a>
-🆔 ID платежа: <code>{external_id}</code>
-
-⏱ Ссылка действительна 60 минут.</big></big>"""
+</big></big></big>"""
             
             return message
         else:
