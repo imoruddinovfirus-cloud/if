@@ -130,81 +130,125 @@ def check_payment():
         encoded_external_id = requests.utils.quote(external_id)
         url = f"https://api.lpayapp.xyz/invoices?externalId={encoded_external_id}"
         
+        logger.info(f"=== НАЧАЛО ПРОВЕРКИ ПЛАТЕЖА ===")
+        logger.info(f"ExternalId: {external_id}")
+        logger.info(f"Encoded externalId: {encoded_external_id}")
+        logger.info(f"URL запроса: {url}")
+        
         resp = requests.get(
             url,
             headers=headers,
             timeout=30
         )
         
-        # Логируем для отладки
-        logger.info(f"Check payment request: {url}")
-        logger.info(f"Response status: {resp.status_code}")
-        logger.info(f"Response content: {resp.text}")
+        # Логируем полный ответ для отладки
+        logger.info(f"Статус ответа API: {resp.status_code}")
+        logger.info(f"Заголовки ответа: {dict(resp.headers)}")
+        logger.info(f"Текст ответа: {resp.text}")
         
         result = resp.json()
+        logger.info(f"JSON ответа: {result}")
         
         if resp.status_code == 200 and result.get('items'):
-            invoice = result['items'][0]
-            status = invoice.get('status')
-            amount = invoice.get('amount')
-            created_at = invoice.get('createdAt')
+            items = result.get('items', [])
+            logger.info(f"Найдено инвойсов: {len(items)}")
             
-            logger.info(f"Invoice status: {status}, amount: {amount}, created: {created_at}")
-            
-            # Обработка всех возможных статусов
-            if status == 'confirmed':
-                return jsonify({
-                    "success": True,
-                    "message": "✅ Оплата подтверждена!",
-                    "status": status,
-                    "amount": amount
-                })
-            elif status == 'expired':
-                return jsonify({
-                    "success": False,
-                    "message": "❌ Время оплаты вышло",
-                    "status": status
-                })
-            elif status == 'cancelled':
-                return jsonify({
-                    "success": False,
-                    "message": "❌ Платёж отменён",
-                    "status": status
-                })
-            elif status == 'assigned':
-                return jsonify({
-                    "success": False,
-                    "message": "⏳ Платёж создан, но ещё не оплачен",
-                    "status": status,
-                    "note": "Статус 'assigned' означает, что инвойс создан, но оплата не произведена"
-                })
-            elif status == 'pending':
-                return jsonify({
-                    "success": False,
-                    "message": "⏳ Ожидаем оплату...",
-                    "status": status
-                })
-            elif status == 'processing':
-                return jsonify({
-                    "success": False,
-                    "message": "⏳ Платёж обрабатывается...",
-                    "status": status
-                })
-            elif status == 'failed':
-                return jsonify({
-                    "success": False,
-                    "message": "❌ Платёж не удался",
-                    "status": status
-                })
+            if len(items) > 0:
+                invoice = items[0]
+                status = invoice.get('status')
+                amount = invoice.get('amount')
+                created_at = invoice.get('createdAt')
+                invoice_id = invoice.get('id')
+                description = invoice.get('description')
+                
+                logger.info(f"=== ДАННЫЕ ИНВОЙСА ===")
+                logger.info(f"ID инвойса: {invoice_id}")
+                logger.info(f"Статус: {status} (тип: {type(status)})")
+                logger.info(f"Сумма: {amount}")
+                logger.info(f"Дата создания: {created_at}")
+                logger.info(f"Описание: {description}")
+                logger.info(f"Весь инвойс: {invoice}")
+                
+                # ВАЖНО: Проверяем тип и значение статуса
+                if not isinstance(status, str):
+                    logger.warning(f"Статус не является строкой! Тип: {type(status)}, значение: {status}")
+                
+                # Строгая проверка статуса
+                status_str = str(status).strip().lower() if status else ""
+                logger.info(f"Обработанный статус (нижний регистр): '{status_str}'")
+                
+                # Обработка всех возможных статусов
+                if status_str == 'confirmed':
+                    logger.info("Статус 'confirmed' - оплата подтверждена")
+                    return jsonify({
+                        "success": True,
+                        "message": "✅ Оплата подтверждена!",
+                        "status": status,
+                        "amount": amount,
+                        "invoiceId": invoice_id
+                    })
+                elif status_str == 'expired':
+                    logger.info("Статус 'expired' - время оплаты вышло")
+                    return jsonify({
+                        "success": False,
+                        "message": "❌ Время оплаты вышло",
+                        "status": status
+                    })
+                elif status_str == 'cancelled':
+                    logger.info("Статус 'cancelled' - платёж отменён")
+                    return jsonify({
+                        "success": False,
+                        "message": "❌ Платёж отменён",
+                        "status": status
+                    })
+                elif status_str == 'assigned':
+                    logger.info("Статус 'assigned' - платёж создан, но не оплачен")
+                    return jsonify({
+                        "success": False,
+                        "message": "⏳ Платёж создан, но ещё не оплачен",
+                        "status": status,
+                        "note": "Статус 'assigned' означает, что инвойс создан, но оплата не произведена"
+                    })
+                elif status_str == 'pending':
+                    logger.info("Статус 'pending' - ожидаем оплату")
+                    return jsonify({
+                        "success": False,
+                        "message": "⏳ Ожидаем оплату...",
+                        "status": status
+                    })
+                elif status_str == 'processing':
+                    logger.info("Статус 'processing' - платёж обрабатывается")
+                    return jsonify({
+                        "success": False,
+                        "message": "⏳ Платёж обрабатывается...",
+                        "status": status
+                    })
+                elif status_str == 'failed':
+                    logger.info("Статус 'failed' - платёж не удался")
+                    return jsonify({
+                        "success": False,
+                        "message": "❌ Платёж не удался",
+                        "status": status
+                    })
+                else:
+                    # Для неизвестных статусов
+                    logger.warning(f"Неизвестный статус: '{status}' (обработан как '{status_str}')")
+                    return jsonify({
+                        "success": False,
+                        "message": f"⏳ Статус платежа: {status}",
+                        "status": status,
+                        "note": "Неизвестный статус платежа",
+                        "rawStatus": status
+                    })
             else:
-                # Для неизвестных статусов
+                logger.warning(f"Массив items пуст для externalId: {external_id}")
                 return jsonify({
                     "success": False,
-                    "message": f"⏳ Статус платежа: {status}",
-                    "status": status,
-                    "note": "Неизвестный статус платежа"
-                })
+                    "message": f"❌ Инвойс не найден в массиве items",
+                    "status": "not_found_in_items"
+                }), 404
         elif resp.status_code == 404:
+            logger.warning(f"API вернуло 404 для externalId: {external_id}")
             return jsonify({
                 "success": False,
                 "message": f"❌ Платёж с externalId '{external_id}' не найден. Убедитесь, что externalId корректен.",
@@ -212,11 +256,12 @@ def check_payment():
             }), 404
         else:
             error_msg = result.get('message', 'Неизвестная ошибка')
-            logger.error(f"API LPay error: {error_msg}")
+            logger.error(f"API LPay error: {error_msg}, статус: {resp.status_code}")
             return jsonify({
                 "success": False,
                 "message": f"❌ Ошибка API LPay: {error_msg}",
-                "status": "api_error"
+                "status": "api_error",
+                "httpStatus": resp.status_code
             }), resp.status_code
             
     except requests.exceptions.Timeout:
@@ -234,9 +279,11 @@ def check_payment():
             "status": "connection_error"
         }), 502
     except Exception as e:
-        logger.error(f"Error checking payment: {str(e)}")
+        logger.error(f"Error checking payment: {str(e)}", exc_info=True)
         return jsonify({
             "success": False,
             "message": f"❌ Внутренняя ошибка сервера: {str(e)}",
             "status": "server_error"
         }), 500
+    finally:
+        logger.info(f"=== ЗАВЕРШЕНИЕ ПРОВЕРКИ ПЛАТЕЖА для externalId: {external_id} ===")
