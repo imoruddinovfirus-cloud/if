@@ -42,7 +42,7 @@ def create_invoice_get():
     amount = request.args.get('amount', 50, type=int)
     description = request.args.get('description', 'VPN payment')
 
-    # ✅ Генерируем УНИКАЛЬНЫЙ externalId прямо здесь
+    # Генерируем уникальный externalId
     unique_id = f"fin_{int(time.time())}_{uuid.uuid4().hex[:8]}"
     
     headers = {
@@ -73,7 +73,7 @@ def create_invoice_get():
                 "success": True,
                 "paymentUrl": payment_url,
                 "externalId": unique_id,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.\n\n🆔 Ваш ID платежа: {unique_id}"
             })
         else:
             return jsonify({
