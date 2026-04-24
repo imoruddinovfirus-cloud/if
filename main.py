@@ -106,11 +106,6 @@ def check_payment():
         return response
     
     external_id = request.args.get('externalId')
-    test_mode = request.args.get('test', '').lower() == 'true'
-    demo_mode = request.args.get('demo', '').lower() == 'true'
-    
-    # Активируем тестовый режим если передан test=true или demo=true
-    is_test_mode = test_mode or demo_mode
     
     if not external_id:
         return jsonify({
@@ -118,21 +113,11 @@ def check_payment():
             "message": "❌ Ошибка: externalId не указан"
         }), 400
     
-    # ТЕСТОВЫЙ РЕЖИМ: возвращаем успех без проверки реального платежа
-    if is_test_mode:
-        logger.info(f"Тестовый режим активирован для externalId: {external_id}")
-        return jsonify({
-            "success": True,
-            "message": f"✅ ТЕСТОВЫЙ РЕЖИМ: Оплата подтверждена! (externalId: {external_id})",
-            "testMode": True,
-            "externalId": external_id
-        })
-    
     # Проверка формата externalId (опционально, для отладки)
     if '{{' in external_id or '}}' in external_id:
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка: externalId содержит шаблонные переменные. Используйте реальный externalId из созданного платежа или добавьте параметр test=true для тестового режима."
+            "message": "❌ Ошибка: externalId содержит шаблонные переменные. Используйте реальный externalId из созданного платежа."
         }), 400
     
     headers = {
@@ -152,58 +137,106 @@ def check_payment():
         )
         
         # Логируем для отладки
-        logger.debug(f"Check payment request: {url}")
-        logger.debug(f"Response status: {resp.status_code}")
-        logger.debug(f"Response content: {resp.text}")
+        logger.info(f"Check payment request: {url}")
+        logger.info(f"Response status: {resp.status_code}")
+        logger.info(f"Response content: {resp.text}")
         
         result = resp.json()
         
         if resp.status_code == 200 and result.get('items'):
-            status = result['items'][0].get('status')
+            invoice = result['items'][0]
+            status = invoice.get('status')
+            amount = invoice.get('amount')
+            created_at = invoice.get('createdAt')
+            
+            logger.info(f"Invoice status: {status}, amount: {amount}, created: {created_at}")
+            
+            # Обработка всех возможных статусов
             if status == 'confirmed':
                 return jsonify({
                     "success": True,
-                    "message": "✅ Оплата подтверждена!"
+                    "message": "✅ Оплата подтверждена!",
+                    "status": status,
+                    "amount": amount
                 })
             elif status == 'expired':
                 return jsonify({
                     "success": False,
-                    "message": "❌ Время оплаты вышло"
+                    "message": "❌ Время оплаты вышло",
+                    "status": status
                 })
             elif status == 'cancelled':
                 return jsonify({
                     "success": False,
-                    "message": "❌ Платёж отменён"
+                    "message": "❌ Платёж отменён",
+                    "status": status
                 })
-            else:
+            elif status == 'assigned':
                 return jsonify({
                     "success": False,
-                    "message": f"⏳ Ожидаем оплату... Статус: {status}"
+                    "message": "⏳ Платёж создан, но ещё не оплачен",
+                    "status": status,
+                    "note": "Статус 'assigned' означает, что инвойс создан, но оплата не произведена"
+                })
+            elif status == 'pending':
+                return jsonify({
+                    "success": False,
+                    "message": "⏳ Ожидаем оплату...",
+                    "status": status
+                })
+            elif status == 'processing':
+                return jsonify({
+                    "success": False,
+                    "message": "⏳ Платёж обрабатывается...",
+                    "status": status
+                })
+            elif status == 'failed':
+                return jsonify({
+                    "success": False,
+                    "message": "❌ Платёж не удался",
+                    "status": status
+                })
+            else:
+                # Для неизвестных статусов
+                return jsonify({
+                    "success": False,
+                    "message": f"⏳ Статус платежа: {status}",
+                    "status": status,
+                    "note": "Неизвестный статус платежа"
                 })
         elif resp.status_code == 404:
             return jsonify({
                 "success": False,
-                "message": f"❌ Платёж с externalId '{external_id}' не найден. Убедитесь, что externalId корректен."
+                "message": f"❌ Платёж с externalId '{external_id}' не найден. Убедитесь, что externalId корректен.",
+                "status": "not_found"
             }), 404
         else:
+            error_msg = result.get('message', 'Неизвестная ошибка')
+            logger.error(f"API LPay error: {error_msg}")
             return jsonify({
                 "success": False,
-                "message": f"❌ Ошибка API LPay: {result.get('message', 'Неизвестная ошибка')}"
+                "message": f"❌ Ошибка API LPay: {error_msg}",
+                "status": "api_error"
             }), resp.status_code
             
     except requests.exceptions.Timeout:
+        logger.error("Timeout connecting to LPay API")
         return jsonify({
             "success": False,
-            "message": "❌ Таймаут при подключении к платежной системе"
+            "message": "❌ Таймаут при подключении к платежной системе",
+            "status": "timeout"
         }), 504
     except requests.exceptions.ConnectionError:
+        logger.error("Connection error to LPay API")
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка подключения к платежной системе"
+            "message": "❌ Ошибка подключения к платежной системе",
+            "status": "connection_error"
         }), 502
     except Exception as e:
         logger.error(f"Error checking payment: {str(e)}")
         return jsonify({
             "success": False,
-            "message": f"❌ Внутренняя ошибка сервера: {str(e)}"
+            "message": f"❌ Внутренняя ошибка сервера: {str(e)}",
+            "status": "server_error"
         }), 500
