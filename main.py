@@ -1,30 +1,39 @@
-# В начале файла добавь
 from flask import Flask, request, jsonify
 import requests
+import json
+import os
 
 app = Flask(__name__)
 
-# Здесь будем хранить связку твоего ID и ID из Lpay
-payment_store = {}
-
 API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
+
+PAYMENTS_FILE = "payments.json"
+
+def load_payments():
+    if os.path.exists(PAYMENTS_FILE):
+        with open(PAYMENTS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_payments(payments):
+    with open(PAYMENTS_FILE, 'w') as f:
+        json.dump(payments, f)
 
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
     amount = request.args.get('amount', 50, type=int)
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
-
+    
     if not external_id:
         return "❌ Нет externalId", 400
-
+    
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
         "Content-Type": "application/json"
     }
-    
     payload = {
         "amount": amount,
         "externalId": external_id,
@@ -44,8 +53,10 @@ def create_invoice_get():
             invoice_id = data.get("invoiceId")
             payment_url = data.get("paymentUrl")
             
-            # СОХРАНЯЕМ СВЯЗКУ: твой externalId -> invoiceId из Lpay
-            payment_store[external_id] = invoice_id
+            # Сохраняем связку
+            payments = load_payments()
+            payments[external_id] = invoice_id
+            save_payments(payments)
             
             return jsonify({
                 "success": True,
@@ -58,15 +69,51 @@ def create_invoice_get():
                 "success": False,
                 "message": f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}"
             }), 400
-            
     except Exception as e:
         return jsonify({
             "success": False,
             "message": f"❌ Ошибка сервера: {str(e)}"
         }), 500
 
-
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
-    return f"Ты запросил статус для externalId = {external_id}"
+    if not external_id:
+        return "❌ Нет externalId", 400
+    
+    payments = load_payments()
+    invoice_id = payments.get(external_id)
+    if not invoice_id:
+        return f"❌ Платёж с ID {external_id} не найден. Возможно, он был удалён или ещё не создан."
+    
+    headers = {
+        "x-api-key": API_KEY,
+        "x-api-secret": API_SECRET
+    }
+    
+    try:
+        resp = requests.get(
+            f"https://api.lpayapp.xyz/invoices/{invoice_id}",
+            headers=headers,
+            timeout=30
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            status = data.get('status')
+            if status == 'confirmed':
+                return "✅ Оплата подтверждена! Спасибо за покупку."
+            elif status == 'expired':
+                return "❌ Время оплаты вышло."
+            else:
+                return f"⏳ Статус: {status}. Ожидаем оплаты..."
+        else:
+            return "❌ Не удалось проверить статус платежа."
+    except Exception as e:
+        return f"❌ Ошибка: {str(e)}"
+
+@app.route('/health', methods=['GET'])
+def health():
+    return "OK"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
