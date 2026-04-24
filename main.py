@@ -29,7 +29,6 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    # ОБРАБОТКА OPTIONS ДЛЯ CORS
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -37,12 +36,18 @@ def create_invoice_get():
         response.headers.add('Access-Control-Allow-Methods', '*')
         return response
     
-    # Получаем параметры из URL
-    amount = request.args.get('amount', 500, type=int)
-    external_id = request.args.get('externalId', f'test_{int(time.time())}')
+    amount = request.args.get('amount', 50, type=int)
+    external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
-    # ПОДГОТАВЛИВАЕМ ЗАПРОС К LPAY
+    # Если externalId не передан или пустой — возвращаем ошибку
+    if not external_id or external_id == 'fin_':
+        return jsonify({
+            "success": False,
+            "message": "❌ Ошибка: externalId не передан или пустой",
+            "error": "invalid_external_id"
+        }), 400
+    
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
@@ -65,42 +70,40 @@ def create_invoice_get():
         
         result = response_lpay.json()
         
-        # Успех — возвращаем ссылку
         if response_lpay.status_code == 201:
             payment_url = result.get("paymentUrl")
             invoice_id = result.get("invoiceId")
-            response_data = {
+            
+            # Возвращаем JSON с нужными полями
+            return jsonify({
                 "success": True,
                 "paymentUrl": payment_url,
                 "invoiceId": invoice_id,
                 "externalId": external_id,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
-            }
-            return jsonify(response_data)
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.\n\nВаш ID платежа: {external_id}"
+            })
         
         # Ошибка No available traders
         if "No available traders" in str(result):
-            response_data = {
+            return jsonify({
                 "success": False,
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте через 2-3 минуты.",
+                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.",
                 "error": "no_traders"
-            }
-            return jsonify(response_data)
+            }), 400
         
         # Любая другая ошибка
-        response_data = {
+        return jsonify({
             "success": False,
-            "message": f"❌ Ошибка платежного сервиса: {result.get('message', 'Попробуйте позже')}",
+            "message": f"❌ Ошибка: {result.get('message', 'Попробуйте позже')}",
             "error": "lpay_error"
-        }
-        return jsonify(response_data)
+        }), 400
         
     except Exception as e:
         return jsonify({
             "success": False,
             "message": "❌ Техническая ошибка. Попробуйте позже.",
             "error": "server_error"
-        })
+        }), 500
 
 
 @app.route('/health', methods=['GET', 'OPTIONS'])
