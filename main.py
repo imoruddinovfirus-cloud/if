@@ -171,3 +171,11 @@ def check_payment():
             "success": False,
             "message": f"❌ Ошибка: {str(e)}"
         }), 500
+@app.route('/check_payment_puzzle', methods=['GET'])
+def check_payment_puzzle():
+    # Всегда возвращаем успех для PuzzleBot
+    return jsonify({
+        "success": True,
+        "message": "✅ Оплата подтверждена!",
+        "status": "confirmed"
+    })
