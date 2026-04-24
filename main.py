@@ -69,38 +69,4 @@ def create_invoice_get():
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
-    
-    if not external_id:
-        return "❌ Нет externalId", 400
-    
-    # Ищем invoiceId по твоему externalId
-    invoice_id = payment_store.get(external_id)
-    if not invoice_id:
-        return f"❌ Платёж с ID {external_id} не найден. Возможно, он был удалён или ещё не создан."
-    
-    headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET
-    }
-    
-    try:
-        # Запрашиваем статус по invoiceId из Lpay
-        resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices/{invoice_id}",
-            headers=headers,
-            timeout=30
-        )
-        
-        if resp.status_code == 200:
-            data = resp.json()
-            status = data.get('status')
-            if status == 'confirmed':
-                return "✅ Оплата подтверждена! Спасибо за покупку."
-            elif status == 'expired':
-                return "❌ Время оплаты вышло."
-            else:
-                return f"⏳ Статус: {status}. Ожидаем оплаты..."
-        else:
-            return "❌ Не удалось проверить статус платежа."
-    except Exception as e:
-        return f"❌ Ошибка: {str(e)}"
+    return f"Ты запросил статус для externalId = {external_id}"
