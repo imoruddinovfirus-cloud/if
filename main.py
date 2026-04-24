@@ -57,18 +57,18 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Огромные буквы (font-size: 2.5em) и строго в столбик
-            message = f"""<div style="font-size: 2.5em;">
-✅ Успешно создан!<br>
-💳 Сумма: {amount} руб.<br>
-🔗 Ссылка: <a href="{payment_url}">Оплатить</a>
+            # Огромные буквы (font-size: 5em), без эмодзи, строго в столбик
+            message = f"""<div style="font-size: 5em; line-height: 1.3;">
+УСПЕШНО СОЗДАН!<br>
+СУММА: {amount} РУБ.<br>
+ССЫЛКА: <a href="{payment_url}">ОПЛАТИТЬ</a>
 </div>"""
             
             return message
         else:
-            return f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}", 400
+            return f"ОШИБКА: {data.get('message', 'Попробуйте другую сумму')}", 400
     except Exception as e:
-        return f"❌ Ошибка сервера: {str(e)}", 500
+        return f"ОШИБКА СЕРВЕРА: {str(e)}", 500
 
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
