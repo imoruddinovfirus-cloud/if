@@ -99,26 +99,26 @@ def health():
 @app.route('/check_payment', methods=['GET', 'OPTIONS'])
 def check_payment():
     from flask import jsonify, make_response
-
-    # Это нужно для CORS pre-flight запросов от PuzzleBot
+    
+    # Обработка pre-flight запроса от PuzzleBot
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type, x-api-key, x-api-secret')
         response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         return response
-
+    
     external_id = request.args.get('externalId')
     if not external_id:
         response = jsonify({"status": "error", "message": "❌ Ошибка: externalId не указан"})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 400
-
+    
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET
     }
-
+    
     try:
         resp = requests.get(
             f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
@@ -126,22 +126,24 @@ def check_payment():
             timeout=10
         )
         data = resp.json()
-
+        
         if resp.status_code == 200 and data.get('items'):
             status = data['items'][0].get('status')
             if status == 'confirmed':
                 resp_data = {"status": "success", "message": "✅ Оплата подтверждена!"}
             elif status == 'expired':
                 resp_data = {"status": "error", "message": "❌ Время оплаты вышло"}
+            elif status == 'cancelled':
+                resp_data = {"status": "error", "message": "❌ Платёж отменён"}
             else:
                 resp_data = {"status": "pending", "message": f"⏳ Ожидаем оплату... Статус: {status}"}
         else:
             resp_data = {"status": "error", "message": "❌ Платёж не найден"}
-
+            
         response = jsonify(resp_data)
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response
-
+        
     except Exception as e:
         response = jsonify({"status": "error", "message": "❌ Ошибка при проверке"})
         response.headers.add('Access-Control-Allow-Origin', '*')
