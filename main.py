@@ -19,7 +19,7 @@ API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
 
 # Токен твоего бота (ЗАМЕНИ НА СВОЙ!)
-BOT_TOKEN = "ТОКЕН_ВАШЕГО_БОТА"
+BOT_TOKEN = "1mJ9ax07sYuzSuef7c0h6BYY0rSkqmAL"
 
 # Хранилище ссылок на оплату (message_id -> payment_url)
 payment_messages = {}
