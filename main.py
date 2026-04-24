@@ -53,21 +53,23 @@ def create_invoice_get():
             invoice_id = data.get("invoiceId")
             payment_url = data.get("paymentUrl")
             
-            # Сохраняем связку (это нужно для проверки статуса)
+            # Сохраняем связку для проверки статуса
             payments = load_payments()
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Возвращаем ПРОСТОЙ ТЕКСТ, а не JSON
-            return f"""✅ Счёт на оплату:
+            # Формируем HTML-сообщение
+            message = f"""<b>🎫 Счет на оплату</b>
 
-✔ Успешно создан!
-☑ Сумма: {amount} руб.
-☑ Описание: {description}
-✎ Ссылка: {payment_url}
-ID платежа: {external_id}
+✅ Успешно создан!
+💳 Сумма: {amount} руб.
+📝 Описание: {description}
+🔗 Ссылка: <a href="{payment_url}">Оплатить</a>
+🆔 ID платежа: <code>{external_id}</code>
 
-Ссылка действительна 60 минут."""
+⏱ Ссылка действительна 60 минут."""
+            
+            return message
         else:
             return f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}", 400
     except Exception as e:
