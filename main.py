@@ -57,7 +57,7 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Картинка на весь фон, чёрный текст
+            # Текст сверху слева, ссылка золотистая
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -67,21 +67,16 @@ def create_invoice_get():
                 background-image: url('https://i.ibb.co/20DD0N2s/Fba-VTc-Sz-D-x-GLM6-ZV26k-Omk-Eyq5-Rs-Tsw-ZWTWj-Nf9-VCh-L8f-W6l-YZ3-FIn-Rw-N3y-Yg-Z-yy-Zy-Xza-Aj-Kw-Ta-O.jpg');
                 background-size: cover;
                 background-position: center;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                text-align: center;
                 font-family: Arial, sans-serif;
                 font-size: 2.5em;
                 line-height: 1.3;
                 color: black;
                 font-weight: bold;
+                padding: 40px;
             ">
-            <div>
                 ОРДЕР ГОТОВ<br>
                 СУММА: {amount} РУБ.<br>
-                ССЫЛКА: <a href="{payment_url}" style="color: black; text-decoration: underline;">ОПЛАТИТЬ</a>
-            </div>
+                ССЫЛКА: <a href="{payment_url}" style="color: #FFD700; text-decoration: underline;">ОПЛАТИТЬ</a>
             </div>"""
             
             return message
