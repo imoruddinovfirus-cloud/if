@@ -1,53 +1,24 @@
-from flask import Flask, request, make_response
-from flask_cors import CORS
+# В начале файла добавь
+from flask import Flask, request, jsonify
 import requests
-import time
-import logging
-import uuid
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+# Здесь будем хранить связку твоего ID и ID из Lpay
+payment_store = {}
 
 API_KEY = "06ff2425-dcf0-42ed-85d3-419bb4bbe927"
 API_SECRET = "8e280987-ebba-4c95-af1c-90934e372774"
 
-# Хранилище последнего платежа для каждого пользователя
-user_last_external_id = {}
-
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', '*')
-    response.headers.add('Access-Control-Allow-Methods', '*')
-    return response
-
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
     amount = request.args.get('amount', 50, type=int)
-    description = request.args.get('description', 'VPN payment')
-    
-    # БЕРЁМ externalId ИЗ ЗАПРОСА
     external_id = request.args.get('externalId')
-    
-    # Если externalId не передан или содержит шаблонные переменные — генерируем свой
-    if not external_id or '{{' in external_id or '}}' in external_id:
-        external_id = f"fin_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-        logger.info(f"Сгенерирован новый externalId: {external_id}")
-    
-    # Сохраняем externalId для пользователя (по userId или chatId)
-    user_id = request.args.get('userId')
-    chat_id = request.args.get('chatId')
-    
-    if user_id:
-        user_last_external_id[user_id] = external_id
-        logger.info(f"Сохранён externalId {external_id} для userId {user_id}")
-    if chat_id:
-        user_last_external_id[chat_id] = external_id
-        logger.info(f"Сохранён externalId {external_id} для chatId {chat_id}")
-    
+    description = request.args.get('description', 'VPN payment')
+
+    if not external_id:
+        return "❌ Нет externalId", 400
+
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET,
@@ -61,146 +32,75 @@ def create_invoice_get():
     }
     
     try:
-        response_lpay = requests.post(
+        resp = requests.post(
             "https://api.lpayapp.xyz/invoices",
             headers=headers,
             json=payload,
             timeout=30
         )
+        data = resp.json()
         
-        result = response_lpay.json()
-        
-        if response_lpay.status_code == 201:
-            payment_url = result.get("paymentUrl")
+        if resp.status_code == 201:
+            invoice_id = data.get("invoiceId")
+            payment_url = data.get("paymentUrl")
             
-            # ВОЗВРАЩАЕМ ТЕКСТ ВМЕСТО JSON
-            response_text = f"""🎫 *Счет на оплату*
-
-✅ Успешно создан!
-💳 Сумма: {amount} руб.
-📝 Описание: {description}
-🔗 Ссылка: {payment_url}
-🆔 ID платежа: {external_id}
-
-Ссылка действительна 60 минут."""
+            # СОХРАНЯЕМ СВЯЗКУ: твой externalId -> invoiceId из Lpay
+            payment_store[external_id] = invoice_id
             
-            logger.info(f"Успешно создан инвойс: {external_id}")
-            return response_text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+            return jsonify({
+                "success": True,
+                "paymentUrl": payment_url,
+                "externalId": external_id,
+                "message": f"✅ Счёт на оплату:\n\n✔ Успешно создан!\n☑ Сумма: {amount} руб.\n☑ Описание: {description}\n✎ Ссылка: {payment_url}\nID платежа: {external_id}\n\nСсылка действительна 60 минут."
+            })
         else:
-            error_msg = result.get('message', 'Попробуйте другую сумму')
-            logger.error(f"Ошибка API LPay: {error_msg}")
-            
-            # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-            error_text = f"""❌ Ошибка создания платежа
-
-{error_msg}
-
-Попробуйте другую сумму или обратитесь в поддержку."""
-            return error_text, 400, {'Content-Type': 'text/plain; charset=utf-8'}
+            return jsonify({
+                "success": False,
+                "message": f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}"
+            }), 400
             
     except Exception as e:
-        logger.error(f"Ошибка создания инвойса: {str(e)}")
-        
-        # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-        error_text = f"""❌ Техническая ошибка
+        return jsonify({
+            "success": False,
+            "message": f"❌ Ошибка сервера: {str(e)}"
+        }), 500
 
-Не удалось создать платёж.
-Попробуйте позже или обратитесь в поддержку.
-
-Ошибка: {str(e)}"""
-        return error_text, 500, {'Content-Type': 'text/plain; charset=utf-8'}
-
-@app.route('/health', methods=['GET'])
-def health():
-    return "OK"
 
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
-    user_id = request.args.get('userId')
-    chat_id = request.args.get('chatId')
     external_id = request.args.get('externalId')
     
-    # Если передан userId или chatId, берём сохранённый externalId
     if not external_id:
-        if user_id:
-            external_id = user_last_external_id.get(user_id)
-        elif chat_id:
-            external_id = user_last_external_id.get(chat_id)
-        
-        if not external_id:
-            # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-            error_text = """❌ Нет активных платежей
-
-Сначала создайте платёж через /pay_fin"""
-            return error_text, 404, {'Content-Type': 'text/plain; charset=utf-8'}
+        return "❌ Нет externalId", 400
     
-    if not external_id:
-        # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-        error_text = """❌ Ошибка параметров
-
-Не передан externalId, userId или chatId"""
-        return error_text, 400, {'Content-Type': 'text/plain; charset=utf-8'}
+    # Ищем invoiceId по твоему externalId
+    invoice_id = payment_store.get(external_id)
+    if not invoice_id:
+        return f"❌ Платёж с ID {external_id} не найден. Возможно, он был удалён или ещё не создан."
     
-    # Реальная проверка через API Lpay
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET
     }
     
     try:
+        # Запрашиваем статус по invoiceId из Lpay
         resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+            f"https://api.lpayapp.xyz/invoices/{invoice_id}",
             headers=headers,
             timeout=30
         )
-        result = resp.json()
-        logger.info(f"Проверка платежа {external_id}: статус {resp.status_code}")
         
-        if resp.status_code == 200 and result.get('items'):
-            status = result['items'][0].get('status')
-            
+        if resp.status_code == 200:
+            data = resp.json()
+            status = data.get('status')
             if status == 'confirmed':
-                # ВОЗВРАЩАЕМ ТЕКСТ УСПЕХА
-                success_text = f"""✅ Оплата подтверждена!
-
-Платёж {external_id} успешно оплачен."""
-                return success_text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
-                
+                return "✅ Оплата подтверждена! Спасибо за покупку."
             elif status == 'expired':
-                # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-                error_text = f"""❌ Время оплаты вышло
-
-Платёж {external_id} просрочен.
-Создайте новый платёж."""
-                return error_text, 400, {'Content-Type': 'text/plain; charset=utf-8'}
-                
+                return "❌ Время оплаты вышло."
             else:
-                # ВОЗВРАЩАЕМ ТЕКСТ СТАТУСА
-                status_text = f"""⏳ Ожидание оплаты
-
-Статус платежа {external_id}: {status}
-Ожидаем подтверждения оплаты."""
-                return status_text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
-                
+                return f"⏳ Статус: {status}. Ожидаем оплаты..."
         else:
-            # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-            error_text = f"""❌ Платёж не найден
-
-Платёж с ID {external_id} не найден.
-Возможно, он был удалён или ещё не создан."""
-            return error_text, 404, {'Content-Type': 'text/plain; charset=utf-8'}
-            
+            return "❌ Не удалось проверить статус платежа."
     except Exception as e:
-        logger.error(f"Ошибка проверки: {str(e)}")
-        
-        # ВОЗВРАЩАЕМ ТЕКСТ ОШИБКИ
-        error_text = f"""❌ Ошибка проверки
-
-Не удалось проверить статус платежа.
-Попробуйте позже.
-
-Ошибка: {str(e)}"""
-        return error_text, 500, {'Content-Type': 'text/plain; charset=utf-8'}
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        return f"❌ Ошибка: {str(e)}"
