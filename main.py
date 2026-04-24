@@ -112,17 +112,33 @@ def check_payment():
             "message": "❌ Ошибка: externalId не указан"
         }), 400
     
+    # Проверка формата externalId (опционально, для отладки)
+    if '{{' in external_id or '}}' in external_id:
+        return jsonify({
+            "success": False,
+            "message": "❌ Ошибка: externalId содержит шаблонные переменные. Используйте реальный externalId из созданного платежа."
+        }), 400
+    
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET
     }
     
     try:
+        # Кодируем externalId для безопасной передачи в URL
+        encoded_external_id = requests.utils.quote(external_id)
+        url = f"https://api.lpayapp.xyz/invoices?externalId={encoded_external_id}"
+        
         resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+            url,
             headers=headers,
             timeout=30
         )
+        
+        # Логируем для отладки
+        logger.debug(f"Check payment request: {url}")
+        logger.debug(f"Response status: {resp.status_code}")
+        logger.debug(f"Response content: {resp.text}")
         
         result = resp.json()
         
@@ -148,14 +164,30 @@ def check_payment():
                     "success": False,
                     "message": f"⏳ Ожидаем оплату... Статус: {status}"
                 })
+        elif resp.status_code == 404:
+            return jsonify({
+                "success": False,
+                "message": f"❌ Платёж с externalId '{external_id}' не найден. Убедитесь, что externalId корректен."
+            }), 404
         else:
             return jsonify({
                 "success": False,
-                "message": "❌ Платёж не найден"
-            }), 404
+                "message": f"❌ Ошибка API LPay: {result.get('message', 'Неизвестная ошибка')}"
+            }), resp.status_code
             
-    except Exception as e:
+    except requests.exceptions.Timeout:
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка при проверке"
+            "message": "❌ Таймаут при подключении к платежной системе"
+        }), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({
+            "success": False,
+            "message": "❌ Ошибка подключения к платежной системе"
+        }), 502
+    except Exception as e:
+        logger.error(f"Error checking payment: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"❌ Внутренняя ошибка сервера: {str(e)}"
         }), 500
