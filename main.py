@@ -22,7 +22,7 @@ def save_payments(payments):
 
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    amount = request.args.get('amount', 150, type=int)
+    amount = 150  # ← жёстко, не из запроса
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
