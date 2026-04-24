@@ -96,12 +96,19 @@ def health():
     return "OK"
 
 
-@app.route('/check_payment', methods=['GET'])
+@app.route('/check_payment', methods=['GET', 'OPTIONS'])
 def check_payment():
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', '*')
+        response.headers.add('Access-Control-Allow-Methods', '*')
+        return response
+    
     external_id = request.args.get('externalId')
     if not external_id:
         return jsonify({
-            "status": "error",
+            "success": False,
             "message": "❌ Ошибка: externalId не указан"
         }), 400
     
@@ -123,32 +130,32 @@ def check_payment():
             status = result['items'][0].get('status')
             if status == 'confirmed':
                 return jsonify({
-                    "status": "success",
+                    "success": True,
                     "message": "✅ Оплата подтверждена!"
                 })
             elif status == 'expired':
                 return jsonify({
-                    "status": "error",
+                    "success": False,
                     "message": "❌ Время оплаты вышло"
                 })
             elif status == 'cancelled':
                 return jsonify({
-                    "status": "error",
+                    "success": False,
                     "message": "❌ Платёж отменён"
                 })
             else:
                 return jsonify({
-                    "status": "pending",
+                    "success": False,
                     "message": f"⏳ Ожидаем оплату... Статус: {status}"
                 })
         else:
             return jsonify({
-                "status": "error",
+                "success": False,
                 "message": "❌ Платёж не найден"
             }), 404
             
     except Exception as e:
         return jsonify({
-            "status": "error",
+            "success": False,
             "message": "❌ Ошибка при проверке"
         }), 500
