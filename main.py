@@ -22,7 +22,7 @@ def save_payments(payments):
 
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    amount = 150  # ← жёстко, не из запроса
+    amount = 150  # фиксированная сумма
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
@@ -57,18 +57,39 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Шрифт Arial, текст "ОРДЕР ГОТОВ"
-            message = f"""<div style="font-family: Arial, sans-serif; font-size: 2.5em; line-height: 1.3;">
-ОРДЕР ГОТОВ<br>
-СУММА: {amount} РУБ.<br>
-ССЫЛКА: <a href="{payment_url}">ОПЛАТИТЬ</a>
-</div>"""
+            # Твоя картинка на весь фон
+            message = f"""<div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image: url('https://i.ibb.co/20DD0N2s/Fba-VTc-Sz-D-x-GLM6-ZV26k-Omk-Eyq5-Rs-Tsw-ZWTWj-Nf9-VCh-L8f-W6l-YZ3-FIn-Rw-N3y-Yg-Z-yy-Zy-Xza-Aj-Kw-Ta-O.jpg');
+                background-size: cover;
+                background-position: center;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                font-family: Arial, sans-serif;
+                font-size: 2.5em;
+                line-height: 1.3;
+                color: white;
+                text-shadow: 2px 2px 4px black;
+            ">
+            <div>
+                ОРДЕР ГОТОВ<br>
+                СУММА: {amount} РУБ.<br>
+                ССЫЛКА: <a href="{payment_url}" style="color: yellow;">ОПЛАТИТЬ</a>
+            </div>
+            </div>"""
             
             return message
         else:
             return f"ОШИБКА: {data.get('message', 'Попробуйте другую сумму')}", 400
     except Exception as e:
         return f"ОШИБКА СЕРВЕРА: {str(e)}", 500
+
         
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
