@@ -57,9 +57,9 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Шрифт Impact
-            message = f"""<div style="font-family: Impact, sans-serif; font-size: 2.5em; line-height: 1.3;">
-УСПЕШНО СОЗДАН!<br>
+            # Шрифт Arial, текст "ОРДЕР ГОТОВ"
+            message = f"""<div style="font-family: Arial, sans-serif; font-size: 2.5em; line-height: 1.3;">
+ОРДЕР ГОТОВ<br>
 СУММА: {amount} РУБ.<br>
 ССЫЛКА: <a href="{payment_url}">ОПЛАТИТЬ</a>
 </div>"""
