@@ -107,33 +107,86 @@ def check_payment():
     
     external_id = request.args.get('externalId')
     
+    # Логируем входящий запрос
+    logger.info(f"=== ВХОДЯЩИЙ ЗАПРОС check_payment ===")
+    logger.info(f"Время: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Полный URL: {request.url}")
+    logger.info(f"ExternalId: '{external_id}'")
+    logger.info(f"User-Agent: {request.headers.get('User-Agent', 'Не указан')}")
+    
     if not external_id:
+        logger.warning("ExternalId не указан")
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка: externalId не указан"
+            "message": "❌ Ошибка: externalId не указан",
+            "errorCode": "MISSING_EXTERNAL_ID"
         }), 400
     
-    # Проверка формата externalId (опционально, для отладки)
-    if '{{' in external_id or '}}' in external_id:
+    external_id_str = str(external_id).strip()
+    
+    # ПРОВЕРКА НА ШАБЛОННУЮ ПЕРЕМЕННУЮ {{USER_ID}} (ВЕРХНИЙ РЕГИСТР)
+    if '{{USER_ID}}' in external_id_str:
+        logger.warning(f"⚠️ Обнаружена шаблонная переменная {{USER_ID}} в externalId: '{external_id_str}'")
+        
+        # Определяем User-Agent
+        user_agent = request.headers.get('User-Agent', '').lower()
+        is_telegram_bot = 'telegram' in user_agent or 'bot' in user_agent
+        
+        error_message = (
+            "❌ ОШИБКА: externalId содержит шаблонную переменную {{USER_ID}}.\n\n"
+            "ПРОБЛЕМА: Переменная {{USER_ID}} не была заменена на реальный ID пользователя.\n"
+            "РЕШЕНИЕ: В коде клиента (бота/приложения) нужно заменить '{{USER_ID}}' на реальный user_id.\n\n"
+            "Пример правильного externalId: fin_1730000000_abc123de\n"
+            "Если вы видите fin_{{USER_ID}}, значит код не работает правильно."
+        )
+        
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка: externalId содержит шаблонные переменные. Используйте реальный externalId из созданного платежа."
+            "message": error_message,
+            "errorCode": "TEMPLATE_VARIABLE_IN_ID",
+            "templateFound": "{{USER_ID}}",
+            "receivedExternalId": external_id_str,
+            "isTelegramBot": is_telegram_bot
         }), 400
     
+    # Также проверяем общий случай шаблонных переменных {{...}}
+    if '{{' in external_id_str and '}}' in external_id_str:
+        logger.warning(f"⚠️ Обнаружены шаблонные переменные в externalId: '{external_id_str}'")
+        
+        error_message = (
+            "❌ Ошибка: externalId содержит шаблонные переменные {{...}}.\n"
+            "Используйте реальный externalId из созданного платежа.\n"
+            "Если это {{USER_ID}}, убедитесь что переменная в верхнем регистре."
+        )
+        
+        return jsonify({
+            "success": False,
+            "message": error_message,
+            "errorCode": "TEMPLATE_VARIABLE_IN_ID",
+            "receivedExternalId": external_id_str
+        }), 400
+    
+    # Проверка формата
+    if not external_id_str.startswith('fin_'):
+        logger.warning(f"Некорректный формат: '{external_id_str}'")
+        return jsonify({
+            "success": False,
+            "message": f"❌ Некорректный формат externalId. Должен начинаться с 'fin_'",
+            "errorCode": "INVALID_FORMAT",
+            "receivedExternalId": external_id_str
+        }), 400
+    
+    # Дальнейшая проверка платежа через API LPay
     headers = {
         "x-api-key": API_KEY,
         "x-api-secret": API_SECRET
     }
     
     try:
-        # Кодируем externalId для безопасной передачи в URL
-        encoded_external_id = requests.utils.quote(external_id)
+        encoded_external_id = requests.utils.quote(external_id_str)
         url = f"https://api.lpayapp.xyz/invoices?externalId={encoded_external_id}"
         
-        logger.info(f"=== НАЧАЛО ПРОВЕРКИ ПЛАТЕЖА ===")
-        logger.info(f"ExternalId: {external_id}")
-        logger.info(f"Encoded externalId: {encoded_external_id}")
-        logger.info(f"URL запроса: {url}")
+        logger.info(f"Запрос к API LPay: {url}")
         
         resp = requests.get(
             url,
@@ -141,45 +194,27 @@ def check_payment():
             timeout=30
         )
         
-        # Логируем полный ответ для отладки
-        logger.info(f"Статус ответа API: {resp.status_code}")
-        logger.info(f"Заголовки ответа: {dict(resp.headers)}")
-        logger.info(f"Текст ответа: {resp.text}")
+        logger.info(f"Ответ API LPay: статус {resp.status_code}")
         
         result = resp.json()
-        logger.info(f"JSON ответа: {result}")
         
         if resp.status_code == 200 and result.get('items'):
             items = result.get('items', [])
-            logger.info(f"Найдено инвойсов: {len(items)}")
             
             if len(items) > 0:
                 invoice = items[0]
                 status = invoice.get('status')
                 amount = invoice.get('amount')
-                created_at = invoice.get('createdAt')
                 invoice_id = invoice.get('id')
-                description = invoice.get('description')
                 
-                logger.info(f"=== ДАННЫЕ ИНВОЙСА ===")
-                logger.info(f"ID инвойса: {invoice_id}")
-                logger.info(f"Статус: {status} (тип: {type(status)})")
-                logger.info(f"Сумма: {amount}")
-                logger.info(f"Дата создания: {created_at}")
-                logger.info(f"Описание: {description}")
-                logger.info(f"Весь инвойс: {invoice}")
+                logger.info(f"Статус инвойса: {status}, сумма: {amount}")
                 
-                # ВАЖНО: Проверяем тип и значение статуса
-                if not isinstance(status, str):
-                    logger.warning(f"Статус не является строкой! Тип: {type(status)}, значение: {status}")
-                
-                # Строгая проверка статуса
+                # Нормализуем статус
                 status_str = str(status).strip().lower() if status else ""
-                logger.info(f"Обработанный статус (нижний регистр): '{status_str}'")
                 
-                # Обработка всех возможных статусов
+                # Обработка статусов
                 if status_str == 'confirmed':
-                    logger.info("Статус 'confirmed' - оплата подтверждена")
+                    logger.info("✅ Оплата подтверждена")
                     return jsonify({
                         "success": True,
                         "message": "✅ Оплата подтверждена!",
@@ -187,103 +222,49 @@ def check_payment():
                         "amount": amount,
                         "invoiceId": invoice_id
                     })
-                elif status_str == 'expired':
-                    logger.info("Статус 'expired' - время оплаты вышло")
-                    return jsonify({
-                        "success": False,
-                        "message": "❌ Время оплаты вышло",
-                        "status": status
-                    })
-                elif status_str == 'cancelled':
-                    logger.info("Статус 'cancelled' - платёж отменён")
-                    return jsonify({
-                        "success": False,
-                        "message": "❌ Платёж отменён",
-                        "status": status
-                    })
-                elif status_str == 'assigned':
-                    logger.info("Статус 'assigned' - платёж создан, но не оплачен")
-                    return jsonify({
-                        "success": False,
-                        "message": "⏳ Платёж создан, но ещё не оплачен",
-                        "status": status,
-                        "note": "Статус 'assigned' означает, что инвойс создан, но оплата не произведена"
-                    })
-                elif status_str == 'pending':
-                    logger.info("Статус 'pending' - ожидаем оплату")
-                    return jsonify({
-                        "success": False,
-                        "message": "⏳ Ожидаем оплату...",
-                        "status": status
-                    })
-                elif status_str == 'processing':
-                    logger.info("Статус 'processing' - платёж обрабатывается")
-                    return jsonify({
-                        "success": False,
-                        "message": "⏳ Платёж обрабатывается...",
-                        "status": status
-                    })
-                elif status_str == 'failed':
-                    logger.info("Статус 'failed' - платёж не удался")
-                    return jsonify({
-                        "success": False,
-                        "message": "❌ Платёж не удался",
-                        "status": status
-                    })
                 else:
-                    # Для неизвестных статусов
-                    logger.warning(f"Неизвестный статус: '{status}' (обработан как '{status_str}')")
+                    # Все остальные статусы - не оплачено
+                    status_display = status if status else "неизвестен"
+                    logger.info(f"⏳ Платёж не оплачен, статус: {status}")
                     return jsonify({
                         "success": False,
-                        "message": f"⏳ Статус платежа: {status}",
+                        "message": f"⏳ Платёж не оплачен. Статус: {status_display}",
                         "status": status,
-                        "note": "Неизвестный статус платежа",
-                        "rawStatus": status
+                        "paid": False
                     })
             else:
-                logger.warning(f"Массив items пуст для externalId: {external_id}")
+                logger.warning("Массив items пуст")
                 return jsonify({
                     "success": False,
-                    "message": f"❌ Инвойс не найден в массиве items",
-                    "status": "not_found_in_items"
+                    "message": "❌ Инвойс не найден",
+                    "status": "not_found"
                 }), 404
         elif resp.status_code == 404:
-            logger.warning(f"API вернуло 404 для externalId: {external_id}")
+            logger.warning(f"API LPay: инвойс не найден")
             return jsonify({
                 "success": False,
-                "message": f"❌ Платёж с externalId '{external_id}' не найден. Убедитесь, что externalId корректен.",
-                "status": "not_found"
+                "message": f"❌ Платёж с ID '{external_id_str}' не найден.",
+                "status": "not_found",
+                "paid": False
             }), 404
         else:
             error_msg = result.get('message', 'Неизвестная ошибка')
-            logger.error(f"API LPay error: {error_msg}, статус: {resp.status_code}")
+            logger.error(f"Ошибка API LPay: {error_msg}")
             return jsonify({
                 "success": False,
-                "message": f"❌ Ошибка API LPay: {error_msg}",
+                "message": f"❌ Ошибка платежной системы: {error_msg}",
                 "status": "api_error",
-                "httpStatus": resp.status_code
+                "paid": False
             }), resp.status_code
             
-    except requests.exceptions.Timeout:
-        logger.error("Timeout connecting to LPay API")
-        return jsonify({
-            "success": False,
-            "message": "❌ Таймаут при подключении к платежной системе",
-            "status": "timeout"
-        }), 504
-    except requests.exceptions.ConnectionError:
-        logger.error("Connection error to LPay API")
-        return jsonify({
-            "success": False,
-            "message": "❌ Ошибка подключения к платежной системе",
-            "status": "connection_error"
-        }), 502
     except Exception as e:
-        logger.error(f"Error checking payment: {str(e)}", exc_info=True)
+        logger.error(f"Ошибка при проверке платежа: {str(e)}", exc_info=True)
         return jsonify({
             "success": False,
             "message": f"❌ Внутренняя ошибка сервера: {str(e)}",
-            "status": "server_error"
+            "status": "server_error",
+            "paid": False
         }), 500
     finally:
-        logger.info(f"=== ЗАВЕРШЕНИЕ ПРОВЕРКИ ПЛАТЕЖА для externalId: {external_id} ===")
+        logger.info(f"Завершена проверка для: {external_id_str}")
+
