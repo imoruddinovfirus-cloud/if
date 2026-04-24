@@ -29,24 +29,21 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
+    import uuid
+    import time
+
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', '*')
         response.headers.add('Access-Control-Allow-Methods', '*')
         return response
-    
+
     amount = request.args.get('amount', 50, type=int)
-    external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
-    
-    # Если externalId не передан или пустой — возвращаем ошибку
-    if not external_id or external_id == 'fin_':
-        return jsonify({
-            "success": False,
-            "message": "❌ Ошибка: externalId не передан или пустой",
-            "error": "invalid_external_id"
-        }), 400
+
+    # ✅ Генерируем УНИКАЛЬНЫЙ externalId прямо здесь
+    unique_id = f"fin_{int(time.time())}_{uuid.uuid4().hex[:8]}"
     
     headers = {
         "x-api-key": API_KEY,
@@ -56,7 +53,7 @@ def create_invoice_get():
     
     payload = {
         "amount": amount,
-        "externalId": external_id,
+        "externalId": unique_id,
         "description": description
     }
     
@@ -72,37 +69,21 @@ def create_invoice_get():
         
         if response_lpay.status_code == 201:
             payment_url = result.get("paymentUrl")
-            invoice_id = result.get("invoiceId")
-            
-            # Возвращаем JSON с нужными полями
             return jsonify({
                 "success": True,
                 "paymentUrl": payment_url,
-                "invoiceId": invoice_id,
-                "externalId": external_id,
-                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.\n\nВаш ID платежа: {external_id}"
+                "externalId": unique_id,
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут."
             })
-        
-        # Ошибка No available traders
-        if "No available traders" in str(result):
+        else:
             return jsonify({
                 "success": False,
-                "message": "❌ Платёжный сервис временно недоступен. Попробуйте другую сумму или повторите через 10-15 минут.",
-                "error": "no_traders"
+                "message": f"❌ Ошибка: {result.get('message', 'Попробуйте другую сумму')}"
             }), 400
-        
-        # Любая другая ошибка
-        return jsonify({
-            "success": False,
-            "message": f"❌ Ошибка: {result.get('message', 'Попробуйте позже')}",
-            "error": "lpay_error"
-        }), 400
-        
     except Exception as e:
         return jsonify({
             "success": False,
-            "message": "❌ Техническая ошибка. Попробуйте позже.",
-            "error": "server_error"
+            "message": "❌ Техническая ошибка. Попробуйте позже."
         }), 500
 
 
