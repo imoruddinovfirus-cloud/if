@@ -95,7 +95,7 @@ def check_payment():
     payments = load_payments()
     invoice_id = payments.get(external_id)
     if not invoice_id:
-        return f"❌ Платёж с ID {external_id} не найден."
+        return f"Ваш платёж не найден 😥"
     
     headers = {
         "x-api-key": API_KEY,
@@ -114,7 +114,7 @@ def check_payment():
             if status == 'confirmed':
                 return "✅ Оплата подтверждена! Спасибо за покупку."
             elif status == 'expired':
-                return "❌ Время оплаты вышло."
+                return "❌ Время на оплату вышло."
             else:
                 return f"⏳ Статус: {status}. Ожидаем оплаты..."
         else:
