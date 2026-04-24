@@ -53,27 +53,25 @@ def create_invoice_get():
             invoice_id = data.get("invoiceId")
             payment_url = data.get("paymentUrl")
             
-            # Сохраняем связку
+            # Сохраняем связку (это нужно для проверки статуса)
             payments = load_payments()
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            return jsonify({
-                "success": True,
-                "paymentUrl": payment_url,
-                "externalId": external_id,
-                "message": f"✅ Счёт на оплату:\n\n✔ Успешно создан!\n☑ Сумма: {amount} руб.\n☑ Описание: {description}\n✎ Ссылка: {payment_url}\nID платежа: {external_id}\n\nСсылка действительна 60 минут."
-            })
+            # Возвращаем ПРОСТОЙ ТЕКСТ, а не JSON
+            return f"""✅ Счёт на оплату:
+
+✔ Успешно создан!
+☑ Сумма: {amount} руб.
+☑ Описание: {description}
+✎ Ссылка: {payment_url}
+ID платежа: {external_id}
+
+Ссылка действительна 60 минут."""
         else:
-            return jsonify({
-                "success": False,
-                "message": f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}"
-            }), 400
+            return f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}", 400
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": f"❌ Ошибка сервера: {str(e)}"
-        }), 500
+        return f"❌ Ошибка сервера: {str(e)}", 500
 
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
