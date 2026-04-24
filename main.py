@@ -260,3 +260,16 @@ def check_payment():
         }), 500
     finally:
         logger.info(f"Завершена проверка для: {external_id_str}")
+@app.route('/lpay_webhook', methods=['POST'])
+def lpay_webhook():
+    data = request.json
+    
+    # Проверяем, что это уведомление об успешной оплате
+    if data.get('event') == 'invoice.status_changed' and data.get('status') == 'confirmed':
+        external_id = data.get('externalId')
+        # Отправляем сообщение пользователю в Telegram
+        # Нужно знать chat_id. Можно извлечь из external_id, если там есть userId
+        chat_id = extract_user_id_from_external_id(external_id)  # Например, fin_1234567890 -> 1234567890
+        send_telegram_message(chat_id, "✅ Оплата подтверждена! Ваш VPN ключ: ...")
+    
+    return "OK", 200
