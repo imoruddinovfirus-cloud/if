@@ -179,3 +179,11 @@ def check_payment_puzzle():
         "message": "✅ Оплата подтверждена!",
         "status": "confirmed"
     })
+@app.route('/puzzle_fake', methods=['GET'])
+def puzzle_fake():
+    # Этот эндпоинт всегда возвращает успех, игнорируя параметры
+    return jsonify({
+        "success": True,
+        "message": "✅ Оплата подтверждена! (тест)",
+        "status": "confirmed"
+    })
