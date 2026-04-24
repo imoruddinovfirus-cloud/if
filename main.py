@@ -96,18 +96,16 @@ def health():
     return "OK"
 
 
-@app.route('/check_by_link', methods=['GET'])
-def check_by_link():
-    payment_link = request.args.get('link')
-    if not payment_link:
-        return make_response("❌ Ошибка: ссылка не передана")
+@app.route('/check_payment', methods=['GET'])
+def check_payment():
+    from flask import jsonify
     
-    # Извлекаем invoiceId из ссылки
-    match = re.search(r'pay\.lpayapp\.xyz/([a-f0-9-]+)', payment_link)
-    if not match:
-        return make_response("❌ Ошибка: неверный формат ссылки")
-    
-    invoice_id = match.group(1)
+    external_id = request.args.get('externalId')
+    if not external_id:
+        return jsonify({
+            "status": "error",
+            "message": "❌ Ошибка: externalId не указан"
+        }), 400
     
     headers = {
         "x-api-key": API_KEY,
@@ -116,28 +114,41 @@ def check_by_link():
     
     try:
         resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices/{invoice_id}",
+            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
             headers=headers,
             timeout=10
         )
+        data = resp.json()
         
-        if resp.status_code == 200:
-            data = resp.json()
-            status = data.get('status')
-            
+        if resp.status_code == 200 and data.get('items'):
+            status = data['items'][0].get('status')
             if status == 'confirmed':
-                return make_response("✅ Оплата подтверждена!")
+                return jsonify({
+                    "status": "success",
+                    "message": "✅ Оплата подтверждена!"
+                })
             elif status == 'expired':
-                return make_response("❌ Время оплаты вышло")
+                return jsonify({
+                    "status": "error",
+                    "message": "❌ Время оплаты вышло"
+                })
             elif status == 'cancelled':
-                return make_response("❌ Платёж отменён")
+                return jsonify({
+                    "status": "error",
+                    "message": "❌ Платёж отменён"
+                })
             else:
-                return make_response(f"⏳ Ожидаем оплату... Статус: {status}")
+                return jsonify({
+                    "status": "pending",
+                    "message": f"⏳ Ожидаем оплату... Статус: {status}"
+                })
         else:
-            return make_response("❌ Платёж не найден")
+            return jsonify({
+                "status": "error",
+                "message": "❌ Платёж не найден"
+            }), 404
     except Exception as e:
-        return make_response("❌ Ошибка при проверке")
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        return jsonify({
+            "status": "error",
+            "message": "❌ Ошибка при проверке"
+        }), 500
