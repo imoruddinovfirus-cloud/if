@@ -1,6 +1,6 @@
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    amount = request.args.get('amount', 150, type=int)  # ← 150 рублей
+    amount = request.args.get('amount', 150, type=int)
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
@@ -31,13 +31,13 @@ def create_invoice_get():
             invoice_id = data.get("invoiceId")
             payment_url = data.get("paymentUrl")
             
-            # Сохраняем связку для проверки статуса
+            # Сохраняем связку
             payments = load_payments()
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Формируем HTML-сообщение
-            message = f"""<b>🎫 Счет на оплату</b>
+            # Увеличенный текст через <big> или <span style="font-size:1.3em">
+            message = f"""<big><big><b>🎫 Счет на оплату</b>
 
 ✅ Успешно создан!
 💳 Сумма: {amount} руб.
@@ -45,49 +45,13 @@ def create_invoice_get():
 🔗 Ссылка: <a href="{payment_url}">Оплатить</a>
 🆔 ID платежа: <code>{external_id}</code>
 
-⏱ Ссылка действительна 60 минут."""
+⏱ Ссылка действительна 60 минут.</big></big>"""
             
             return message
         else:
             return f"❌ Ошибка: {data.get('message', 'Попробуйте другую сумму')}", 400
     except Exception as e:
         return f"❌ Ошибка сервера: {str(e)}", 500
-        
-@app.route('/check_payment', methods=['GET'])
-def check_payment():
-    external_id = request.args.get('externalId')
-    if not external_id:
-        return "❌ Нет externalId", 400
-    
-    payments = load_payments()
-    invoice_id = payments.get(external_id)
-    if not invoice_id:
-        return f"❌ Платёж с ID {external_id} не найден. Возможно, он был удалён или ещё не создан."
-    
-    headers = {
-        "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET
-    }
-    
-    try:
-        resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices/{invoice_id}",
-            headers=headers,
-            timeout=30
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            status = data.get('status')
-            if status == 'confirmed':
-                return "✅ Оплата подтверждена! Спасибо за покупку."
-            elif status == 'expired':
-                return "❌ Время оплаты вышло."
-            else:
-                return f"⏳ Статус: {status}. Ожидаем оплаты..."
-        else:
-            return "❌ Не удалось проверить статус платежа."
-    except Exception as e:
-        return f"❌ Ошибка: {str(e)}"
 
 @app.route('/health', methods=['GET'])
 def health():
