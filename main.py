@@ -106,17 +106,33 @@ def check_payment():
         return response
     
     external_id = request.args.get('externalId')
+    test_mode = request.args.get('test', '').lower() == 'true'
+    demo_mode = request.args.get('demo', '').lower() == 'true'
+    
+    # Активируем тестовый режим если передан test=true или demo=true
+    is_test_mode = test_mode or demo_mode
+    
     if not external_id:
         return jsonify({
             "success": False,
             "message": "❌ Ошибка: externalId не указан"
         }), 400
     
+    # ТЕСТОВЫЙ РЕЖИМ: возвращаем успех без проверки реального платежа
+    if is_test_mode:
+        logger.info(f"Тестовый режим активирован для externalId: {external_id}")
+        return jsonify({
+            "success": True,
+            "message": f"✅ ТЕСТОВЫЙ РЕЖИМ: Оплата подтверждена! (externalId: {external_id})",
+            "testMode": True,
+            "externalId": external_id
+        })
+    
     # Проверка формата externalId (опционально, для отладки)
     if '{{' in external_id or '}}' in external_id:
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка: externalId содержит шаблонные переменные. Используйте реальный externalId из созданного платежа."
+            "message": "❌ Ошибка: externalId содержит шаблонные переменные. Используйте реальный externalId из созданного платежа или добавьте параметр test=true для тестового режима."
         }), 400
     
     headers = {
