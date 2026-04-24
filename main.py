@@ -157,3 +157,6 @@ def check_payment():
     ">
         {message}
     </div>"""
+@app.route('/health', methods=['GET'])
+def health():
+    return "OK", 200
