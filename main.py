@@ -57,12 +57,12 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Текст с увеличенным размером (3 раза big) и столбиком
-            message = f"""<big><big><big>
-✅ Успешно создан!
-💳 Сумма: {amount} руб.
+            # Огромные буквы (font-size: 2.5em) и строго в столбик
+            message = f"""<div style="font-size: 2.5em;">
+✅ Успешно создан!<br>
+💳 Сумма: {amount} руб.<br>
 🔗 Ссылка: <a href="{payment_url}">Оплатить</a>
-</big></big></big>"""
+</div>"""
             
             return message
         else:
