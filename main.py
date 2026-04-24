@@ -133,45 +133,40 @@ def health():
     return "OK"
 
 
-@app.route('/check_payment', methods=['GET', 'OPTIONS'])
+@app.route('/check_payment', methods=['GET'])
 def check_payment():
-    if request.method == 'OPTIONS':
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', '*')
-        response.headers.add('Access-Control-Allow-Methods', '*')
-        return response
-    
-    external_id = request.args.get('externalId', '')
-    
-    # ЛОГИРОВАНИЕ
-    logger.info(f"=== /check_payment запрос ===")
-    logger.info(f"ExternalId: '{external_id}'")
-    logger.info(f"Полный URL: {request.url}")
-    logger.info(f"User-Agent: {request.headers.get('User-Agent', 'Не указан')}")
-    
-    # ВСЕГДА ВОЗВРАЩАЕМ УСПЕШНЫЙ ОТВЕТ ДЛЯ ЛЮБОГО ЗАПРОСА
-    # Это тестовый режим для отладки
-    
-    response_data = {
-        "success": True,
-        "message": f"✅ Оплата подтверждена!",
-        "status": "confirmed",
-        "externalId": external_id,
-        "note": "Это тестовый ответ. Сервер всегда возвращает успех.",
-        "alwaysSuccess": True,
-        "receivedExternalId": external_id,
-        "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+    external_id = request.args.get('externalId')
+    if not external_id:
+        return jsonify({"status": "error", "message": "❌ Ошибка: externalId не указан"}), 400
+
+    # Твои ключи к Lpay API
+    headers = {
+        "x-api-key": "06ff2425-dcf0-42ed-85d3-419bb4bbe927",
+        "x-api-secret": "8e280987-ebba-4c95-af1c-90934e372774"
     }
-    
-    # Если externalId содержит шаблонные переменные, добавляем информацию
-    if '{{' in external_id or '}}' in external_id:
-        response_data["templateDetected"] = True
-        response_data["note"] = "Обнаружены шаблонные переменные. Это тестовый ответ."
-    
-    logger.info(f"✅ Возвращаем успешный ответ: {response_data}")
-    return jsonify(response_data)
 
+    try:
+        # Запрос к Lpay для получения статуса
+        response = requests.get(
+            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+            headers=headers,
+            timeout=10
+        )
+        data = response.json()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        # Логика проверки ответа от Lpay
+        if response.status_code == 200 and data.get('items'):
+            # Нашли платёж, возвращаем его статус
+            status = data['items'][0].get('status')
+            if status == 'confirmed':
+                return jsonify({"status": "confirmed", "message": "✅ Оплата подтверждена!"})
+            elif status == 'expired':
+                return jsonify({"status": "expired", "message": "❌ Время оплаты вышло"})
+            else:
+                return jsonify({"status": status, "message": f"⏳ Статус: {status}"})
+        else:
+            # Не нашли платёж с таким externalId
+            return jsonify({"status": "not_found", "message": "❌ Платёж не найден"}), 404
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Ошибка сервера: {str(e)}"}), 5
