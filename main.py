@@ -27,86 +27,70 @@ def after_request(response):
 
 @app.route('/create_invoice_get', methods=['GET', 'OPTIONS'])
 def create_invoice_get():
-    # ... (обработка OPTIONS) ...
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', '*')
+        response.headers.add('Access-Control-Allow-Methods', '*')
+        return response
 
-    # 1. БЕРЕМ externalId ИЗ ЗАПРОСА
-    external_id = request.args.get('externalId')
     amount = request.args.get('amount', 50, type=int)
     description = request.args.get('description', 'VPN payment')
-
-    # 2. Если externalId НЕ передан - ГЕНЕРИРУЕМ свой уникальный
-    if not external_id or external_id == 'fin_{{user_id}}':
-        external_id = f"fin_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-
-    # 3. СОХРАНЯЕМ externalId для этого пользователя (если передан userId)
-    user_id = request.args.get('userId')
-    if user_id and external_id:
-        user_last_external_id[user_id] = external_id
-
-    # ... (остальной код отправки запроса в Lpay) ...
-
-@app.route('/check_payment', methods=['GET'])
-def check_payment():
-    user_id = request.args.get('userId')
     
-    if not user_id:
+    # БЕРЁМ externalId ИЗ ЗАПРОСА (не генерируем!)
+    external_id = request.args.get('externalId')
+    
+    # Если externalId не передан или пустой — возвращаем ошибку
+    if not external_id or external_id == 'fin_{{user_id}}':
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка: userId не указан"
+            "message": "❌ Ошибка: не передан externalId"
         }), 400
     
-    # БЕРЁМ СОХРАНЁННЫЙ EXTERNALID ПОСЛЕДНЕГО ПЛАТЕЖА
-    external_id = user_last_external_id.get(user_id)
-    
-    if not external_id:
-        return jsonify({
-            "success": False,
-            "message": "❌ У вас нет активных платежей. Сначала создайте платёж через /pay_fin"
-        }), 404
+    # Сохраняем externalId для пользователя (если передан userId)
+    user_id = request.args.get('userId')
+    if user_id:
+        user_last_external_id[user_id] = external_id
     
     headers = {
         "x-api-key": API_KEY,
-        "x-api-secret": API_SECRET
+        "x-api-secret": API_SECRET,
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "amount": amount,
+        "externalId": external_id,
+        "description": description
     }
     
     try:
-        resp = requests.get(
-            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+        response_lpay = requests.post(
+            "https://api.lpayapp.xyz/invoices",
             headers=headers,
+            json=payload,
             timeout=30
         )
         
-        result = resp.json()
+        result = response_lpay.json()
         
-        if resp.status_code == 200 and result.get('items'):
-            status = result['items'][0].get('status')
-            if status == 'confirmed':
-                return jsonify({
-                    "success": True,
-                    "message": "✅ Оплата подтверждена!",
-                    "status": status
-                })
-            elif status == 'expired':
-                return jsonify({
-                    "success": False,
-                    "message": "❌ Время оплаты вышло",
-                    "status": status
-                })
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": f"⏳ Ожидаем оплату... Статус: {status}",
-                    "status": status
-                })
+        if response_lpay.status_code == 201:
+            payment_url = result.get("paymentUrl")
+            return jsonify({
+                "success": True,
+                "paymentUrl": payment_url,
+                "externalId": external_id,
+                "message": f"✅ Ссылка на оплату: {payment_url}\n\nСсылка действительна 60 минут.\n\n🆔 Ваш ID платежа: {external_id}"
+            })
         else:
             return jsonify({
                 "success": False,
-                "message": "❌ Платёж не найден"
-            }), 404
+                "message": f"❌ Ошибка: {result.get('message', 'Попробуйте другую сумму')}"
+            }), 400
     except Exception as e:
         return jsonify({
             "success": False,
-            "message": "❌ Ошибка при проверке"
+            "message": "❌ Техническая ошибка. Попробуйте позже."
         }), 500
 
 @app.route('/health', methods=['GET'])
