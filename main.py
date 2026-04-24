@@ -99,3 +99,52 @@ def health():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+    
+@app.route('/check_payment', methods=['GET'])
+def check_payment():
+    user_id = request.args.get('userId')
+    external_id = request.args.get('externalId')
+    
+    # Если передан userId, но нет externalId — берём сохранённый externalId
+    if user_id and not external_id:
+        external_id = user_last_external_id.get(user_id)
+        if not external_id:
+            return jsonify({
+                "success": False,
+                "message": "❌ У вас нет активных платежей. Сначала создайте платёж"
+            }), 404
+    
+    # Если нет ни userId, ни externalId — ошибка
+    if not external_id:
+        return jsonify({
+            "success": False,
+            "message": "❌ Ошибка: не передан externalId или userId"
+        }), 400
+    
+    # Проверка статуса по externalId
+    headers = {
+        "x-api-key": API_KEY,
+        "x-api-secret": API_SECRET
+    }
+    
+    try:
+        resp = requests.get(
+            f"https://api.lpayapp.xyz/invoices?externalId={external_id}",
+            headers=headers,
+            timeout=30
+        )
+        
+        result = resp.json()
+        
+        if resp.status_code == 200 and result.get('items'):
+            status = result['items'][0].get('status')
+            if status == 'confirmed':
+                return jsonify({"success": True, "message": "✅ Оплата подтверждена!"})
+            elif status == 'expired':
+                return jsonify({"success": False, "message": "❌ Время оплаты вышло"})
+            else:
+                return jsonify({"success": False, "message": f"⏳ Статус: {status}"})
+        else:
+            return jsonify({"success": False, "message": "❌ Платёж не найден"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": "❌ Ошибка при проверке"}), 500
