@@ -103,26 +103,22 @@ if __name__ == '__main__':
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     user_id = request.args.get('userId')
+    external_id = request.args.get('externalId')
     
-    # Логируем запрос для отладки
-    print(f"Запрос к /check_payment с userId: {user_id}")
+    # Если передан userId, берём сохранённый externalId
+    if user_id and not external_id:
+        external_id = user_last_external_id.get(user_id)
+        if not external_id:
+            return jsonify({
+                "success": False,
+                "message": "❌ Нет активных платежей. Сначала создайте платёж через /pay_fin"
+            }), 404
     
-    # Всегда возвращаем успех, чтобы PuzzleBot мог сохранить переменную
-    # Реальная проверка будет происходить при вызове из бота, когда userId будет реальным
-    if not user_id or user_id == '':
-        return jsonify({
-            "success": True,
-            "message": "✅ Ожидаем оплату (сохранено для PuzzleBot)",
-            "status": "pending"
-        })
-    
-    # Если userId передан, пытаемся найти платёж
-    external_id = user_last_external_id.get(user_id)
     if not external_id:
         return jsonify({
             "success": False,
-            "message": "❌ Нет активных платежей. Сначала создайте платёж через /pay_fin"
-        }), 404
+            "message": "❌ Ошибка: не передан externalId или userId"
+        }), 400
     
     # Реальная проверка через API Lpay
     headers = {
@@ -150,20 +146,3 @@ def check_payment():
             return jsonify({"success": False, "message": "❌ Платёж не найден"}), 404
     except Exception as e:
         return jsonify({"success": False, "message": f"❌ Ошибка: {str(e)}"}), 500
-        
-@app.route('/check_payment_puzzle', methods=['GET'])
-def check_payment_puzzle():
-    # Всегда возвращаем успех для PuzzleBot
-    return jsonify({
-        "success": True,
-        "message": "✅ Оплата подтверждена!",
-        "status": "confirmed"
-    })
-@app.route('/puzzle_fake', methods=['GET'])
-def puzzle_fake():
-    # Этот эндпоинт всегда возвращает успех, игнорируя параметры
-    return jsonify({
-        "success": True,
-        "message": "✅ Оплата подтверждена! (тест)",
-        "status": "confirmed"
-    })
