@@ -129,7 +129,8 @@ def check_payment():
             data = resp.json()
             status = data.get('status')
             if status == 'confirmed':
-                message = "✅ Оплата подтверждена! Спасибо за покупку."
+                vpn_key = os.getenv('VPN_KEY')
+                message = f"✅ Оплата подтверждена! Спасибо за покупку.\n\n🔑 Ваш ключ: {vpn_key}"
             elif status == 'expired':
                 message = "❌ Время на оплату вышло."
             else:
