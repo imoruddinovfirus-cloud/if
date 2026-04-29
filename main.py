@@ -2,6 +2,8 @@ from flask import Flask, request
 import requests
 import json
 import os
+import threading
+import time
 
 app = Flask(__name__)
 
@@ -9,6 +11,10 @@ API_KEY = os.getenv('LPAY_API_KEY')
 API_SECRET = os.getenv('LPAY_API_SECRET')
 
 PAYMENTS_FILE = "payments.json"
+
+# Хранилище последнего externalId и времени создания для каждого пользователя
+user_last_external = {}
+user_payment_time = {}
 
 def load_payments():
     if os.path.exists(PAYMENTS_FILE):
@@ -20,14 +26,29 @@ def save_payments(payments):
     with open(PAYMENTS_FILE, 'w') as f:
         json.dump(payments, f)
 
+def clear_user_data(user_id):
+    """Удаляет данные пользователя через час после оплаты"""
+    time.sleep(3600)  # 1 час
+    if user_id in user_last_external:
+        del user_last_external[user_id]
+    if user_id in user_payment_time:
+        del user_payment_time[user_id]
+    print(f"🧹 Данные пользователя {user_id} удалены через час")
+
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
     amount = 150
     external_id = request.args.get('externalId')
+    user_id = request.args.get('userId')
     description = request.args.get('description', 'VPN payment')
     
     if not external_id:
         return "❌ Нет externalId", 400
+    
+    # Сохраняем externalId и время для пользователя
+    if user_id:
+        user_last_external[user_id] = external_id
+        user_payment_time[user_id] = time.time()
     
     headers = {
         "x-api-key": API_KEY,
@@ -57,7 +78,6 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
-            # Текст сверху слева, ссылка золотистая
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -89,6 +109,8 @@ def create_invoice_get():
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
+    user_id = request.args.get('userId')
+    
     if not external_id:
         return "❌ Нет externalId", 400
     
@@ -131,6 +153,10 @@ def check_payment():
             if status == 'confirmed':
                 vpn_key = os.getenv('VPN_KEY')
                 message = f"✅ Оплата подтверждена! Спасибо за покупку.\n\n🔑 Ваш ключ: {vpn_key}"
+                
+                # Запускаем таймер на очистку данных пользователя через час
+                if user_id:
+                    threading.Thread(target=clear_user_data, args=(user_id,)).start()
             elif status == 'expired':
                 message = "❌ Время на оплату вышло."
             else:
@@ -158,7 +184,7 @@ def check_payment():
     ">
         {message}
     </div>"""
+
 @app.route('/health', methods=['GET'])
 def health():
     return "OK", 200
-    
