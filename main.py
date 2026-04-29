@@ -111,6 +111,29 @@ def check_payment():
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
     
+    # Если передан userId, берём последний externalId из хранилища
+    if user_id and not external_id:
+        external_id = user_last_external.get(user_id)
+        if not external_id:
+            return f"""<div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image: url('https://i.ibb.co/Xxvy6CfL/HNn0xmy9j-LRQjy-xbu8l-VUu-Jpw-DVaj-NE6-KTh-Zn-Cyhcy-Gbs-Ymw83-G0-Mp3-L-V9h7kyfu-JDi-OVHm7-YPAv-IRw-Mo6-k.jpg');
+                background-size: cover;
+                background-position: center;
+                font-family: Arial, sans-serif;
+                font-size: 2.5em;
+                line-height: 1.3;
+                color: black;
+                font-weight: bold;
+                padding: 40px;
+            ">
+                ❌ Нет активного платежа. Сначала создайте платёж.
+            </div>"""
+    
     if not external_id:
         return "❌ Нет externalId", 400
     
