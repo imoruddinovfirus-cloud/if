@@ -1,43 +1,11 @@
-from flask import Flask, request
-import requests
-import json
-import os
-import time
-
-app = Flask(__name__)
-
-API_KEY = os.getenv('LPAY_API_KEY')
-API_SECRET = os.getenv('LPAY_API_SECRET')
-
-PAYMENTS_FILE = "payments.json"
-
-# Хранилище последнего externalId для каждого пользователя
-user_last_external = {}
-
-def load_payments():
-    if os.path.exists(PAYMENTS_FILE):
-        with open(PAYMENTS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-def save_payments(payments):
-    with open(PAYMENTS_FILE, 'w') as f:
-        json.dump(payments, f)
-
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    amount = 20
+    amount = 150
     external_id = request.args.get('externalId')
-    user_id = request.args.get('userId')
     description = request.args.get('description', 'VPN payment')
     
     if not external_id:
         return "❌ Нет externalId", 400
-    
-    # Перезаписываем последний externalId для пользователя
-    if user_id:
-        user_last_external[user_id] = external_id
-        print(f"📝 Сохранён externalId {external_id} для user_id {user_id}")
     
     headers = {
         "x-api-key": API_KEY,
@@ -67,6 +35,7 @@ def create_invoice_get():
             payments[external_id] = invoice_id
             save_payments(payments)
             
+            # Текст сверху слева, ссылка золотистая
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -97,32 +66,7 @@ def create_invoice_get():
         
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
-    user_id = request.args.get('userId')
     external_id = request.args.get('externalId')
-    
-    # Если передан userId и нет externalId, берём последний из хранилища
-    if user_id and not external_id:
-        external_id = user_last_external.get(user_id)
-        if not external_id:
-            return f"""<div style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-image: url('https://i.ibb.co/Xxvy6CfL/HNn0xmy9j-LRQjy-xbu8l-VUu-Jpw-DVaj-NE6-KTh-Zn-Cyhcy-Gbs-Ymw83-G0-Mp3-L-V9h7kyfu-JDi-OVHm7-YPAv-IRw-Mo6-k.jpg');
-                background-size: cover;
-                background-position: center;
-                font-family: Arial, sans-serif;
-                font-size: 2.5em;
-                line-height: 1.3;
-                color: black;
-                font-weight: bold;
-                padding: 40px;
-            ">
-                ❌ Нет активного платежа. Сначала создайте платёж.
-            </div>"""
-    
     if not external_id:
         return "❌ Нет externalId", 400
     
@@ -192,7 +136,6 @@ def check_payment():
     ">
         {message}
     </div>"""
-
 @app.route('/health', methods=['GET'])
 def health():
     return "OK", 200
