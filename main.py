@@ -2,7 +2,6 @@ from flask import Flask, request
 import requests
 import json
 import os
-import threading
 import time
 
 app = Flask(__name__)
@@ -12,9 +11,8 @@ API_SECRET = os.getenv('LPAY_API_SECRET')
 
 PAYMENTS_FILE = "payments.json"
 
-# Хранилище последнего externalId и времени создания для каждого пользователя
+# Хранилище последнего externalId для каждого пользователя
 user_last_external = {}
-user_payment_time = {}
 
 def load_payments():
     if os.path.exists(PAYMENTS_FILE):
@@ -26,15 +24,6 @@ def save_payments(payments):
     with open(PAYMENTS_FILE, 'w') as f:
         json.dump(payments, f)
 
-def clear_user_data(user_id):
-    """Удаляет данные пользователя через час после оплаты"""
-    time.sleep(3600)  # 1 час
-    if user_id in user_last_external:
-        del user_last_external[user_id]
-    if user_id in user_payment_time:
-        del user_payment_time[user_id]
-    print(f"🧹 Данные пользователя {user_id} удалены через час")
-
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
     amount = 150
@@ -45,10 +34,10 @@ def create_invoice_get():
     if not external_id:
         return "❌ Нет externalId", 400
     
-    # Сохраняем externalId и время для пользователя
+    # Перезаписываем последний externalId для пользователя
     if user_id:
         user_last_external[user_id] = external_id
-        user_payment_time[user_id] = time.time()
+        print(f"📝 Сохранён externalId {external_id} для user_id {user_id}")
     
     headers = {
         "x-api-key": API_KEY,
@@ -108,10 +97,10 @@ def create_invoice_get():
         
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
-    external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
+    external_id = request.args.get('externalId')
     
-    # Если передан userId, берём последний externalId из хранилища
+    # Если передан userId и нет externalId, берём последний из хранилища
     if user_id and not external_id:
         external_id = user_last_external.get(user_id)
         if not external_id:
@@ -176,10 +165,6 @@ def check_payment():
             if status == 'confirmed':
                 vpn_key = os.getenv('VPN_KEY')
                 message = f"✅ Оплата подтверждена! Спасибо за покупку.\n\n🔑 Ваш ключ: {vpn_key}"
-                
-                # Запускаем таймер на очистку данных пользователя через час
-                if user_id:
-                    threading.Thread(target=clear_user_data, args=(user_id,)).start()
             elif status == 'expired':
                 message = "❌ Время на оплату вышло."
             else:
