@@ -2,17 +2,15 @@ from flask import Flask, request
 import requests
 import json
 import os
-import time
 
 app = Flask(__name__)
 
 # ==================== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ ====================
 PLATEGA_MERCHANT_ID = os.getenv('PLATEGA_MERCHANT_ID')
 PLATEGA_SECRET = os.getenv('PLATEGA_SECRET')
-BOT_TOKEN = os.getenv('BOT_TOKEN')
 VPN_KEY = os.getenv('VPN_KEY')
 
-# Файл для хранения соответствий externalId -> transactionId и статусов
+# Файл для хранения соответствий externalId -> transactionId и статуса
 TRANSACTIONS_FILE = "transactions.json"
 
 # ==================== ФУНКЦИИ ====================
@@ -25,20 +23,6 @@ def load_transactions():
 def save_transactions(transactions):
     with open(TRANSACTIONS_FILE, 'w') as f:
         json.dump(transactions, f)
-
-def send_telegram_message(chat_id, text):
-    """Отправляет сообщение пользователю в Telegram"""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-    try:
-        requests.post(url, json=payload, timeout=10)
-        print(f"✅ Сообщение отправлено пользователю {chat_id}")
-    except Exception as e:
-        print(f"❌ Ошибка отправки сообщения: {e}")
 
 # ==================== ЭНДПОИНТЫ ====================
 @app.route('/create_invoice_get', methods=['GET'])
@@ -64,9 +48,8 @@ def create_invoice_get():
             "currency": "RUB"
         },
         "description": description,
-        "return": f"https://t.me/твойбот?start=success_{external_id}",
-        "failedUrl": f"https://t.me/твойбот?start=fail_{external_id}",
-        "callbackUrl": "https://if-production.up.railway.app/platega_callback",
+        "return": "https://t.me/ваш_бот?start=success",
+        "failedUrl": "https://t.me/ваш_бот?start=fail",
         "payload": external_id
     }
     
@@ -88,12 +71,11 @@ def create_invoice_get():
             transactions = load_transactions()
             transactions[external_id] = {
                 "transactionId": transaction_id,
-                "status": "PENDING",
-                "created_at": time.time()
+                "status": "PENDING"
             }
             save_transactions(transactions)
             
-            # Формируем красивую страницу
+            # Формируем красивую страницу (как было)
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -123,47 +105,13 @@ def create_invoice_get():
         return f"ОШИБКА СЕРВЕРА: {str(e)}", 500
 
 
-@app.route('/platega_callback', methods=['POST'])
-def platega_callback():
-    try:
-        data = request.json
-        print(f"📩 Вебхук: {data}")
-        
-        if data.get('status') == 'CONFIRMED':
-            payload = data.get('payload')
-            if not payload:
-                return "❌ Нет payload", 400
-            
-            # Обновляем статус транзакции
-            transactions = load_transactions()
-            if payload in transactions:
-                transactions[payload]['status'] = 'CONFIRMED'
-                save_transactions(transactions)
-                
-                # Отправляем ключ пользователю
-                user_id = payload.split('_')[1] if '_' in payload else None
-                if user_id:
-                    send_telegram_message(user_id, f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}")
-                else:
-                    print(f"❌ Не удалось извлечь user_id из {payload}")
-            else:
-                print(f"⚠️ Платёж с payload {payload} не найден")
-            
-            return "OK", 200
-        else:
-            print(f"ℹ️ Статус: {data.get('status')}")
-            return "OK", 200
-    except Exception as e:
-        print(f"❌ Ошибка в вебхуке: {e}")
-        return "Internal Server Error", 500
-
-
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
     if not external_id:
         return "❌ Нет externalId", 400
     
+    # Загружаем транзакции
     transactions = load_transactions()
     trans = transactions.get(external_id)
     if not trans:
@@ -186,17 +134,42 @@ def check_payment():
             Ваш платёж не найден 😥
         </div>"""
     
-    status = trans.get('status')
-    if status == 'CONFIRMED':
-        message = f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}"
-    elif status == 'PENDING':
-        message = "⏳ Статус: PENDING. Ожидаем оплаты..."
-    elif status == 'CANCELED':
-        message = "❌ Платёж отменён."
-    elif status == 'CHARGEBACKED':
-        message = "❌ Произошёл чарджбэк."
-    else:
-        message = f"❌ Неизвестный статус: {status}"
+    transaction_id = trans.get('transactionId')
+    
+    # Запрашиваем статус у Platega
+    headers = {
+        "X-MerchantId": PLATEGA_MERCHANT_ID,
+        "X-Secret": PLATEGA_SECRET
+    }
+    
+    try:
+        resp = requests.get(
+            f"https://app.platega.io/transaction/{transaction_id}",
+            headers=headers,
+            timeout=30
+        )
+        data = resp.json()
+        print(f"📦 Статус от Platega: {data}")
+        
+        if resp.status_code == 200:
+            status = data.get('status')
+            trans['status'] = status
+            save_transactions(transactions)
+            
+            if status == 'CONFIRMED':
+                message = f"✅ Оплата подтверждена! Спасибо за покупку.\n\n🔑 Ваш ключ: {VPN_KEY}"
+            elif status == 'PENDING':
+                message = "⏳ Статус: PENDING. Ожидаем оплаты..."
+            elif status == 'CANCELED':
+                message = "❌ Платёж отменён."
+            elif status == 'CHARGEBACKED':
+                message = "❌ Произошёл чарджбэк."
+            else:
+                message = f"❌ Неизвестный статус: {status}"
+        else:
+            message = f"❌ Ошибка при проверке: {data}"
+    except Exception as e:
+        message = f"❌ Ошибка сервера: {str(e)}"
     
     return f"""<div style="
         position: fixed;
