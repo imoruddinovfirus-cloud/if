@@ -111,7 +111,6 @@ def check_payment():
     if not external_id:
         return "❌ Нет externalId", 400
     
-    # Загружаем транзакции
     transactions = load_transactions()
     trans = transactions.get(external_id)
     if not trans:
@@ -136,7 +135,6 @@ def check_payment():
     
     transaction_id = trans.get('transactionId')
     
-    # Запрашиваем статус у Platega
     headers = {
         "X-MerchantId": PLATEGA_MERCHANT_ID,
         "X-Secret": PLATEGA_SECRET
@@ -157,7 +155,7 @@ def check_payment():
             save_transactions(transactions)
             
             if status == 'CONFIRMED':
-    message = f"""✅ Оплата подтверждена! Спасибо за покупку.
+                message = f"""✅ Оплата подтверждена! Спасибо за покупку.
 
 🔑 Ваш ключ: <span id="vpnKey" style="font-family: monospace; font-size: 1em;">{VPN_KEY}</span>
 <br><br>
