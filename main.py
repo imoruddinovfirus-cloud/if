@@ -101,7 +101,7 @@ def create_platega_payment(amount, external_id, description, payment_method_name
 # 1. СБП (комиссия ~8%)
 @app.route('/create_sbp_payment', methods=['GET'])
 def create_sbp_payment():
-    amount = 138
+    amount = 10
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
