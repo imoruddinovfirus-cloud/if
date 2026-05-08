@@ -185,7 +185,37 @@ def check_payment():
             save_transactions(transactions)
             
             if status == 'CONFIRMED':
-                message = f"✅ Оплата подтверждена! Спасибо за покупку.\n\n🔑 Ваш ключ: {VPN_KEY}"
+    message = f"""✅ Оплата подтверждена! Спасибо за покупку.
+
+🔑 Ваш ключ: <span id="vpnKey" style="font-family: monospace; font-size: 1em;">{VPN_KEY}</span>
+<br><br>
+<button onclick="copyToClipboard()" style="
+    background-color: #FFD700;
+    color: black;
+    font-weight: bold;
+    font-size: 1.2em;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+">📋 Копировать ключ</button>
+
+<script>
+function copyToClipboard() {{
+    const key = document.getElementById('vpnKey').innerText;
+    navigator.clipboard.writeText(key).then(() => {{
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = '✅ Скопировано!';
+        setTimeout(() => {{
+            btn.innerText = originalText;
+        }}, 2000);
+    }}).catch(() => {{
+        alert('Не удалось скопировать. Выделите ключ вручную.');
+    }});
+}}
+</script>"""
             elif status == 'PENDING':
                 message = "⏳ Статус: PENDING. Ожидаем оплаты..."
             elif status == 'CANCELED':
