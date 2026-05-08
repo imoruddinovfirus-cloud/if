@@ -27,7 +27,7 @@ def save_transactions(transactions):
 # ==================== ЭНДПОИНТЫ ====================
 @app.route('/create_invoice_get', methods=['GET'])
 def create_invoice_get():
-    amount = 150.0
+    amount = 138.0
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
