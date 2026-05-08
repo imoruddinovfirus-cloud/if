@@ -24,14 +24,24 @@ def save_transactions(transactions):
     with open(TRANSACTIONS_FILE, 'w') as f:
         json.dump(transactions, f)
 
-def create_platega_payment(amount, external_id, description, payment_method_name):
-    """Общая функция для создания платежа в Platega"""
+# ==================== ЭНДПОИНТЫ ====================
+@app.route('/create_invoice_get', methods=['GET'])
+def create_invoice_get():
+    amount = 150.0
+    external_id = request.args.get('externalId')
+    description = request.args.get('description', 'VPN payment')
+    
+    if not external_id:
+        return "❌ Нет externalId", 400
+    
+    # Заголовки для Platega
     headers = {
         "Content-Type": "application/json",
         "X-MerchantId": PLATEGA_MERCHANT_ID,
         "X-Secret": PLATEGA_SECRET
     }
     
+    # Тело запроса (без заданного метода)
     payload = {
         "paymentDetails": {
             "amount": amount,
@@ -51,7 +61,7 @@ def create_platega_payment(amount, external_id, description, payment_method_name
             timeout=30
         )
         data = resp.json()
-        print(f"📦 Ответ Platega ({payment_method_name}): {data}")
+        print(f"📦 Ответ Platega: {data}")
         
         if resp.status_code == 200 and 'url' in data:
             transaction_id = data.get('transactionId')
@@ -61,12 +71,11 @@ def create_platega_payment(amount, external_id, description, payment_method_name
             transactions = load_transactions()
             transactions[external_id] = {
                 "transactionId": transaction_id,
-                "status": "PENDING",
-                "method": payment_method_name
+                "status": "PENDING"
             }
             save_transactions(transactions)
             
-            # Формируем красивую страницу
+            # Формируем красивую страницу (как было)
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -85,62 +94,24 @@ def create_platega_payment(amount, external_id, description, payment_method_name
             ">
                 ОРДЕР ГОТОВ<br>
                 СУММА: {amount} РУБ.<br>
-                МЕТОД: {payment_method_name}<br>
                 ССЫЛКА: <a href="{payment_url}" style="color: #FFD700; text-decoration: underline;">ОПЛАТИТЬ</a>
             </div>"""
             
             return message
         else:
-            return f"ОШИБКА Platega ({payment_method_name}): {data}", 400
+            return f"ОШИБКА Platega: {data}", 400
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return f"ОШИБКА СЕРВЕРА: {str(e)}", 500
 
-# ==================== ЭНДПОИНТЫ ДЛЯ РАЗНЫХ СПОСОБОВ ОПЛАТЫ ====================
 
-# 1. СБП (комиссия ~8%)
-@app.route('/create_sbp_payment', methods=['GET'])
-def create_sbp_payment():
-    amount = 10
-    external_id = request.args.get('externalId')
-    description = request.args.get('description', 'VPN payment')
-    
-    if not external_id:
-        return "❌ Нет externalId", 400
-    
-    return create_platega_payment(amount, external_id, description, "СБП")
-
-# 2. Банковская карта (комиссия ~9%)
-@app.route('/create_card_payment', methods=['GET'])
-def create_card_payment():
-    amount = 136.5
-    external_id = request.args.get('externalId')
-    description = request.args.get('description', 'VPN payment')
-    
-    if not external_id:
-        return "❌ Нет externalId", 400
-    
-    return create_platega_payment(amount, external_id, description, "Банковская карта")
-
-# 3. Криптовалюта (комиссия ~3%)
-@app.route('/create_crypto_payment', methods=['GET'])
-def create_crypto_payment():
-    amount = 145.5
-    external_id = request.args.get('externalId')
-    description = request.args.get('description', 'VPN payment')
-    
-    if not external_id:
-        return "❌ Нет externalId", 400
-    
-    return create_platega_payment(amount, external_id, description, "Криптовалюта")
-
-# ==================== ПРОВЕРКА СТАТУСА (единый эндпоинт) ====================
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
     if not external_id:
         return "❌ Нет externalId", 400
     
+    # Загружаем транзакции
     transactions = load_transactions()
     trans = transactions.get(external_id)
     if not trans:
@@ -165,6 +136,7 @@ def check_payment():
     
     transaction_id = trans.get('transactionId')
     
+    # Запрашиваем статус у Platega
     headers = {
         "X-MerchantId": PLATEGA_MERCHANT_ID,
         "X-Secret": PLATEGA_SECRET
