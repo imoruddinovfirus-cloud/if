@@ -101,7 +101,7 @@ def create_platega_payment(amount, external_id, description, payment_method_name
 # 1. СБП (комиссия ~8%)
 @app.route('/create_sbp_payment', methods=['GET'])
 def create_sbp_payment():
-    amount = 163.0  # 150 + 8% = 163
+    amount = 10
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
@@ -113,7 +113,7 @@ def create_sbp_payment():
 # 2. Банковская карта (комиссия ~9%)
 @app.route('/create_card_payment', methods=['GET'])
 def create_card_payment():
-    amount = 165.0  # 150 + 9% = 165
+    amount = 10
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
@@ -125,7 +125,7 @@ def create_card_payment():
 # 3. Криптовалюта (комиссия ~3%)
 @app.route('/create_crypto_payment', methods=['GET'])
 def create_crypto_payment():
-    amount = 154.5  # 150 + 3% = 154.5
+    amount = 10
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
