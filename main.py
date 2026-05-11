@@ -34,9 +34,9 @@ def send_telegram_message(chat_id, text):
         pass
 
 # ==================== ЕДИНЫЙ ЭНДПОИНТ ДЛЯ ОПЛАТЫ ====================
-@app.route('/create_payment', methods=['GET'])
+app.route('/create_payment', methods=['GET'])
 def create_payment():
-    amount = 165.0  # чтобы после комиссии выходило 150
+    amount = 165.0
     external_id = request.args.get('externalId')
     description = request.args.get('description', 'VPN payment')
     
@@ -71,41 +71,23 @@ def create_payment():
         data = resp.json()
         
         if resp.status_code == 200 and 'url' in data:
-            transaction_id = data.get('transactionId')
             payment_url = data.get('url')
             
+            # Сохраняем транзакцию
             transactions = load_transactions()
             transactions[external_id] = {
-                "transactionId": transaction_id,
+                "transactionId": data.get('transactionId'),
                 "status": "PENDING"
             }
             save_transactions(transactions)
             
-            # Красивая страница со ссылкой
-            return f"""<div style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-image: url('https://i.ibb.co/Xxvy6CfL/HNn0xmy9j-LRQjy-xbu8l-VUu-Jpw-DVaj-NE6-KTh-Zn-Cyhcy-Gbs-Ymw83-G0-Mp3-L-V9h7kyfu-JDi-OVHm7-YPAv-IRw-Mo6-k.jpg');
-                background-size: cover;
-                background-position: center;
-                font-family: Arial, sans-serif;
-                font-size: 2.5em;
-                line-height: 1.3;
-                color: black;
-                font-weight: bold;
-                padding: 40px;
-            ">
-                ОРДЕР ГОТОВ<br>
-                СУММА: {amount} РУБ.<br>
-                ССЫЛКА: <a href="{payment_url}" style="color: #FFD700; text-decoration: underline;">ОПЛАТИТЬ</a>
-            </div>"""
+            # Возвращаем только ссылку (без HTML)
+            return payment_url
         else:
-            return f"ОШИБКА Platega: {data}", 400
+            return f"Ошибка: {data}", 400
     except Exception as e:
-        return f"ОШИБКА СЕРВЕРА: {str(e)}", 500
+        return f"Ошибка сервера: {str(e)}", 500
+
 
 
 # ==================== ВЕБХУК ОТ PLATEGA ====================
