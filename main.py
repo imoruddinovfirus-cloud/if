@@ -38,13 +38,13 @@ def send_telegram_message(chat_id, text):
         print(f"❌ Ошибка отправки: {e}")
 
 # ==================== ЭНДПОИНТЫ ====================
-@app.route('/create_sbp_payment', methods=['GET'])
-def create_sbp_payment():
+@app.route('/create_payment', methods=['GET'])
+def create_payment():
     external_id = request.args.get('externalId')
     if not external_id:
         return "❌ Нет externalId", 400
     
-    amount = 163.0
+    amount = 150.0
     headers = {
         "Content-Type": "application/json",
         "X-MerchantId": PLATEGA_MERCHANT_ID,
@@ -63,82 +63,11 @@ def create_sbp_payment():
         resp = requests.post("https://app.platega.io/v2/transaction/process", headers=headers, json=payload, timeout=30)
         data = resp.json()
         if resp.status_code == 200 and 'url' in data:
-            transaction_id = data.get('transactionId')
             payment_url = data.get('url')
-            transactions = load_transactions()
-            transactions[external_id] = {"transactionId": transaction_id, "status": "PENDING", "method": "СБП"}
-            save_transactions(transactions)
-            return f'<a href="{payment_url}">Оплатить {amount} руб. (СБП)</a>'
+            # ВОЗВРАЩАЕМ ТОЛЬКО ССЫЛКУ, БЕЗ ТЕГОВ
+            return payment_url
         else:
-            return f"Ошибка: {data}", 400
-    except Exception as e:
-        return f"Ошибка сервера: {str(e)}", 500
-
-@app.route('/create_card_payment', methods=['GET'])
-def create_card_payment():
-    external_id = request.args.get('externalId')
-    if not external_id:
-        return "❌ Нет externalId", 400
-    amount = 165.0
-    headers = {
-        "Content-Type": "application/json",
-        "X-MerchantId": PLATEGA_MERCHANT_ID,
-        "X-Secret": PLATEGA_SECRET
-    }
-    payload = {
-        "paymentDetails": {"amount": amount, "currency": "RUB"},
-        "description": "VPN payment",
-        "return": "https://t.me/ваш_бот?start=success",
-        "failedUrl": "https://t.me/ваш_бот?start=fail",
-        "callbackUrl": "https://if-production.up.railway.app/platega_webhook",
-        "payload": external_id
-    }
-    try:
-        resp = requests.post("https://app.platega.io/v2/transaction/process", headers=headers, json=payload, timeout=30)
-        data = resp.json()
-        if resp.status_code == 200 and 'url' in data:
-            transaction_id = data.get('transactionId')
-            payment_url = data.get('url')
-            transactions = load_transactions()
-            transactions[external_id] = {"transactionId": transaction_id, "status": "PENDING", "method": "Карта"}
-            save_transactions(transactions)
-            return f'<a href="{payment_url}">Оплатить {amount} руб. (Карта)</a>'
-        else:
-            return f"Ошибка: {data}", 400
-    except Exception as e:
-        return f"Ошибка сервера: {str(e)}", 500
-
-@app.route('/create_crypto_payment', methods=['GET'])
-def create_crypto_payment():
-    external_id = request.args.get('externalId')
-    if not external_id:
-        return "❌ Нет externalId", 400
-    amount = 154.5
-    headers = {
-        "Content-Type": "application/json",
-        "X-MerchantId": PLATEGA_MERCHANT_ID,
-        "X-Secret": PLATEGA_SECRET
-    }
-    payload = {
-        "paymentDetails": {"amount": amount, "currency": "RUB"},
-        "description": "VPN payment",
-        "return": "https://t.me/ваш_бот?start=success",
-        "failedUrl": "https://t.me/ваш_бот?start=fail",
-        "callbackUrl": "https://if-production.up.railway.app/platega_webhook",
-        "payload": external_id
-    }
-    try:
-        resp = requests.post("https://app.platega.io/v2/transaction/process", headers=headers, json=payload, timeout=30)
-        data = resp.json()
-        if resp.status_code == 200 and 'url' in data:
-            transaction_id = data.get('transactionId')
-            payment_url = data.get('url')
-            transactions = load_transactions()
-            transactions[external_id] = {"transactionId": transaction_id, "status": "PENDING", "method": "Крипта"}
-            save_transactions(transactions)
-            return f'<a href="{payment_url}">Оплатить {amount} руб. (Крипта)</a>'
-        else:
-            return f"Ошибка: {data}", 400
+            return f"Ошибка Platega: {data}", 400
     except Exception as e:
         return f"Ошибка сервера: {str(e)}", 500
 
