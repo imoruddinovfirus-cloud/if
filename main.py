@@ -25,13 +25,16 @@ def save_transactions(transactions):
         json.dump(transactions, f)
 
 def send_telegram_message(chat_id, text):
+    """Отправляет сообщение пользователю в Telegram"""
     if not BOT_TOKEN:
+        print("❌ BOT_TOKEN не задан")
         return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
         requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=10)
-    except:
-        pass
+        print(f"✅ Сообщение отправлено {chat_id}")
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
 
 # ==================== ЕДИНЫЙ ЭНДПОИНТ ДЛЯ ОПЛАТЫ ====================
 @app.route('/create_payment', methods=['GET'])
@@ -81,20 +84,25 @@ def create_payment():
             }
             save_transactions(transactions)
             
-            # Возвращаем только ссылку (без HTML)
+            # Отправляем ссылку пользователю в Telegram
+            user_id = external_id.split('_')[1] if '_' in external_id else None
+            if user_id:
+                send_telegram_message(user_id, f"🔗 Ссылка на оплату:\n{payment_url}\n\nПосле оплаты ключ придёт автоматически.")
+            
+            # Возвращаем ссылку (для PuzzleBot, если он всё-таки сможет её вывести)
             return payment_url
         else:
             return f"Ошибка: {data}", 400
     except Exception as e:
         return f"Ошибка сервера: {str(e)}", 500
 
-
-
 # ==================== ВЕБХУК ОТ PLATEGA ====================
 @app.route('/platega_webhook', methods=['POST'])
 def platega_webhook():
     try:
         data = request.json
+        print(f"📩 Вебхук: {data}")
+        
         if data.get('status') == 'CONFIRMED':
             payload = data.get('payload')
             if not payload:
@@ -108,11 +116,15 @@ def platega_webhook():
                 user_id = payload.split('_')[1] if '_' in payload else None
                 if user_id:
                     send_telegram_message(user_id, f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}")
+                else:
+                    print(f"❌ Не удалось извлечь user_id из {payload}")
+            else:
+                print(f"⚠️ Платёж {payload} не найден")
             return "OK", 200
         return "OK", 200
-    except:
+    except Exception as e:
+        print(f"❌ Ошибка вебхука: {e}")
         return "OK", 200
-
 
 @app.route('/health', methods=['GET'])
 def health():
