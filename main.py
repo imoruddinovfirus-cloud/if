@@ -34,7 +34,7 @@ def send_telegram_message(chat_id, text):
         pass
 
 # ==================== ЕДИНЫЙ ЭНДПОИНТ ДЛЯ ОПЛАТЫ ====================
-app.route('/create_payment', methods=['GET'])
+@app.route('/create_payment', methods=['GET'])
 def create_payment():
     amount = 165.0
     external_id = request.args.get('externalId')
