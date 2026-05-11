@@ -9,6 +9,7 @@ app = Flask(__name__)
 PLATEGA_MERCHANT_ID = os.getenv('PLATEGA_MERCHANT_ID')
 PLATEGA_SECRET = os.getenv('PLATEGA_SECRET')
 VPN_KEY = os.getenv('VPN_KEY')
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 
 # Файл для хранения соответствий externalId -> transactionId и статуса
 TRANSACTIONS_FILE = "transactions.json"
@@ -24,24 +25,32 @@ def save_transactions(transactions):
     with open(TRANSACTIONS_FILE, 'w') as f:
         json.dump(transactions, f)
 
-# ==================== ЭНДПОИНТЫ ====================
-@app.route('/create_invoice_get', methods=['GET'])
-def create_invoice_get():
-    amount = 150.0
-    external_id = request.args.get('externalId')
-    description = request.args.get('description', 'VPN payment')
+def send_telegram_message(chat_id, text):
+    """Отправляет сообщение пользователю в Telegram"""
+    if not BOT_TOKEN:
+        print("❌ BOT_TOKEN не задан в переменных окружения")
+        return
     
-    if not external_id:
-        return "❌ Нет externalId", 400
-    
-    # Заголовки для Platega
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    try:
+        requests.post(url, json=payload, timeout=10)
+        print(f"✅ Сообщение отправлено пользователю {chat_id}")
+    except Exception as e:
+        print(f"❌ Ошибка отправки сообщения: {e}")
+
+def create_platega_payment(amount, external_id, description, payment_method_name, callback_url):
+    """Общая функция для создания платежа в Platega с webhook"""
     headers = {
         "Content-Type": "application/json",
         "X-MerchantId": PLATEGA_MERCHANT_ID,
         "X-Secret": PLATEGA_SECRET
     }
     
-    # Тело запроса (без заданного метода)
     payload = {
         "paymentDetails": {
             "amount": amount,
@@ -50,6 +59,7 @@ def create_invoice_get():
         "description": description,
         "return": "https://t.me/ваш_бот?start=success",
         "failedUrl": "https://t.me/ваш_бот?start=fail",
+        "callbackUrl": callback_url,
         "payload": external_id
     }
     
@@ -61,7 +71,7 @@ def create_invoice_get():
             timeout=30
         )
         data = resp.json()
-        print(f"📦 Ответ Platega: {data}")
+        print(f"📦 Ответ Platega ({payment_method_name}): {data}")
         
         if resp.status_code == 200 and 'url' in data:
             transaction_id = data.get('transactionId')
@@ -71,11 +81,12 @@ def create_invoice_get():
             transactions = load_transactions()
             transactions[external_id] = {
                 "transactionId": transaction_id,
-                "status": "PENDING"
+                "status": "PENDING",
+                "method": payment_method_name
             }
             save_transactions(transactions)
             
-            # Формируем красивую страницу (как было)
+            # Формируем красивую страницу
             message = f"""<div style="
                 position: fixed;
                 top: 0;
@@ -94,17 +105,81 @@ def create_invoice_get():
             ">
                 ОРДЕР ГОТОВ<br>
                 СУММА: {amount} РУБ.<br>
+                МЕТОД: {payment_method_name}<br>
                 ССЫЛКА: <a href="{payment_url}" style="color: #FFD700; text-decoration: underline;">ОПЛАТИТЬ</a>
             </div>"""
             
             return message
         else:
-            return f"ОШИБКА Platega: {data}", 400
+            return f"ОШИБКА Platega ({payment_method_name}): {data}", 400
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return f"ОШИБКА СЕРВЕРА: {str(e)}", 500
 
+# ==================== ЭНДПОИНТЫ ДЛЯ РАЗНЫХ СПОСОБОВ ОПЛАТЫ ====================
+CALLBACK_URL = "https://if-production.up.railway.app/platega_webhook"
 
+@app.route('/create_card_payment', methods=['GET'])
+def create_card_payment():
+    amount = 165.0
+    external_id = request.args.get('externalId')
+    description = request.args.get('description', 'VPN payment')
+    if not external_id:
+        return "❌ Нет externalId", 400
+    return create_platega_payment(amount, external_id, description, "Банковская карта", CALLBACK_URL)
+
+@app.route('/create_sbp_payment', methods=['GET'])
+def create_sbp_payment():
+    amount = 163.0
+    external_id = request.args.get('externalId')
+    description = request.args.get('description', 'VPN payment')
+    if not external_id:
+        return "❌ Нет externalId", 400
+    return create_platega_payment(amount, external_id, description, "СБП", CALLBACK_URL)
+
+@app.route('/create_crypto_payment', methods=['GET'])
+def create_crypto_payment():
+    amount = 154.5
+    external_id = request.args.get('externalId')
+    description = request.args.get('description', 'VPN payment')
+    if not external_id:
+        return "❌ Нет externalId", 400
+    return create_platega_payment(amount, external_id, description, "Криптовалюта", CALLBACK_URL)
+
+# ==================== ВЕБХУК ОТ PLATEGA ====================
+@app.route('/platega_webhook', methods=['POST'])
+def platega_webhook():
+    try:
+        data = request.json
+        print(f"📩 Получен вебхук от Platega: {data}")
+        
+        if data.get('status') == 'CONFIRMED':
+            payload = data.get('payload')
+            if not payload:
+                return "❌ Нет payload", 400
+            
+            transactions = load_transactions()
+            if payload in transactions:
+                transactions[payload]['status'] = 'CONFIRMED'
+                save_transactions(transactions)
+                
+                user_id = payload.split('_')[1] if '_' in payload else None
+                if user_id:
+                    send_telegram_message(user_id, f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}")
+                else:
+                    print(f"❌ Не удалось извлечь user_id из payload: {payload}")
+            else:
+                print(f"⚠️ Платёж с payload {payload} не найден в транзакциях")
+            
+            return "OK", 200
+        else:
+            print(f"ℹ️ Статус не CONFIRMED: {data.get('status')}")
+            return "OK", 200
+    except Exception as e:
+        print(f"❌ Ошибка в вебхуке: {e}")
+        return "Internal Server Error", 500
+
+# ==================== ПРОВЕРКА СТАТУСА (резервная) ====================
 @app.route('/check_payment', methods=['GET'])
 def check_payment():
     external_id = request.args.get('externalId')
@@ -134,7 +209,6 @@ def check_payment():
         </div>"""
     
     transaction_id = trans.get('transactionId')
-    
     headers = {
         "X-MerchantId": PLATEGA_MERCHANT_ID,
         "X-Secret": PLATEGA_SECRET
@@ -155,45 +229,13 @@ def check_payment():
             save_transactions(transactions)
             
             if status == 'CONFIRMED':
-                message = f"""✅ Оплата подтверждена! Спасибо за покупку.
-
-🔑 Ваш ключ: <span id="vpnKey" style="font-family: monospace; font-size: 1em;">{VPN_KEY}</span>
-<br><br>
-<button onclick="copyToClipboard()" style="
-    background-color: #FFD700;
-    color: black;
-    font-weight: bold;
-    font-size: 1.2em;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    box-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-">📋 Копировать ключ</button>
-
-<script>
-function copyToClipboard() {{
-    const key = document.getElementById('vpnKey').innerText;
-    navigator.clipboard.writeText(key).then(() => {{
-        const btn = event.target;
-        const originalText = btn.innerText;
-        btn.innerText = '✅ Скопировано!';
-        setTimeout(() => {{
-            btn.innerText = originalText;
-        }}, 2000);
-    }}).catch(() => {{
-        alert('Не удалось скопировать. Выделите ключ вручную.');
-    }});
-}}
-</script>"""
+                message = f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}"
             elif status == 'PENDING':
                 message = "⏳ Статус: PENDING. Ожидаем оплаты..."
             elif status == 'CANCELED':
                 message = "❌ Платёж отменён."
-            elif status == 'CHARGEBACKED':
-                message = "❌ Произошёл чарджбэк."
             else:
-                message = f"❌ Неизвестный статус: {status}"
+                message = f"❌ Статус: {status}"
         else:
             message = f"❌ Ошибка при проверке: {data}"
     except Exception as e:
