@@ -41,8 +41,9 @@ def send_telegram_message(chat_id, text):
 @app.route('/create_payment', methods=['GET'])
 def create_payment():
     external_id = request.args.get('externalId')
-    if not external_id:
-        return "❌ Нет externalId", 400
+    user_id = request.args.get('userId')
+    if not external_id or not user_id:
+        return "❌ Нет externalId или userId", 400
     
     amount = 150.0
     headers = {
@@ -64,8 +65,9 @@ def create_payment():
         data = resp.json()
         if resp.status_code == 200 and 'url' in data:
             payment_url = data.get('url')
-            # ВОЗВРАЩАЕМ ТОЛЬКО ССЫЛКУ, БЕЗ ТЕГОВ
-            return payment_url
+            # Отправляем ссылку пользователю в Telegram
+            send_telegram_message(user_id, f"🔗 Ссылка на оплату: {payment_url}\n\nСумма: {amount} руб.")
+            return "OK", 200
         else:
             return f"Ошибка Platega: {data}", 400
     except Exception as e:
