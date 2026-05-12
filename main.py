@@ -25,23 +25,12 @@ def save_transactions(transactions):
     with open(TRANSACTIONS_FILE, 'w') as f:
         json.dump(transactions, f)
 
-def send_telegram_message(chat_id, text, copy_key=None):
-    """Отправляет сообщение в Telegram. Если передан copy_key — добавляет кнопку копирования"""
+def send_telegram_message(chat_id, text):
     if not BOT_TOKEN:
         print("❌ BOT_TOKEN не задан")
         return
-    
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-    
-    # Добавляем кнопку копирования, если передан ключ
-    if copy_key:
-        payload["reply_markup"] = {
-            "inline_keyboard": [
-                [{"text": "📋 Скопировать ключ", "copy_text": {"text": copy_key}}]
-            ]
-        }
-    
     try:
         requests.post(url, json=payload, timeout=10)
         print(f"✅ Сообщение отправлено {chat_id}")
@@ -56,7 +45,7 @@ def create_payment():
     if not external_id or not user_id:
         return "❌ Нет externalId или userId", 400
     
-    amount = 2.0
+    amount = 150.0
     headers = {
         "Content-Type": "application/json",
         "X-MerchantId": PLATEGA_MERCHANT_ID,
@@ -79,7 +68,7 @@ def create_payment():
             transaction_id = data.get('transactionId')
             payment_url = data.get('url')
             
-            # Сохраняем транзакцию
+            # ✅ СОХРАНЯЕМ ТРАНЗАКЦИЮ
             transactions = load_transactions()
             transactions[external_id] = {
                 "transactionId": transaction_id,
@@ -110,12 +99,7 @@ def platega_webhook():
                 save_transactions(transactions)
                 user_id = payload.split('_')[1] if '_' in payload else None
                 if user_id:
-                    # Отправляем сообщение с кнопкой копирования
-                    send_telegram_message(
-                        user_id,
-                        "✅ Оплата подтверждена! Нажмите кнопку, чтобы скопировать ключ:",
-                        copy_key=VPN_KEY
-                    )
+                    send_telegram_message(user_id, f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}")
             return "OK", 200
         return "OK", 200
     except Exception as e:
