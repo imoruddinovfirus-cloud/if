@@ -45,7 +45,7 @@ def create_payment():
     if not external_id or not user_id:
         return "❌ Нет externalId или userId", 400
     
-    amount = 150.0
+    amount = 5.0
     headers = {
         "Content-Type": "application/json",
         "X-MerchantId": PLATEGA_MERCHANT_ID,
