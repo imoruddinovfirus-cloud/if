@@ -45,7 +45,7 @@ def create_payment():
     if not external_id or not user_id:
         return "❌ Нет externalId или userId", 400
     
-    amount = 10.0
+    amount = 150.0
     headers = {
         "Content-Type": "application/json",
         "X-MerchantId": PLATEGA_MERCHANT_ID,
@@ -63,8 +63,19 @@ def create_payment():
     try:
         resp = requests.post("https://app.platega.io/v2/transaction/process", headers=headers, json=payload, timeout=30)
         data = resp.json()
+        
         if resp.status_code == 200 and 'url' in data:
+            transaction_id = data.get('transactionId')
             payment_url = data.get('url')
+            
+            # ✅ СОХРАНЯЕМ ТРАНЗАКЦИЮ
+            transactions = load_transactions()
+            transactions[external_id] = {
+                "transactionId": transaction_id,
+                "status": "PENDING"
+            }
+            save_transactions(transactions)
+            
             # Отправляем ссылку пользователю в Telegram
             send_telegram_message(user_id, f"🔗 Ссылка на оплату: {payment_url}\n\nСумма: {amount} руб.")
             return "OK", 200
@@ -98,5 +109,3 @@ def platega_webhook():
 @app.route('/health', methods=['GET'])
 def health():
     return "OK", 200
-
-# НЕТ БЛОКА if __name__ == '__main__' !!!
