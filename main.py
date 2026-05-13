@@ -82,7 +82,7 @@ def create_platega_payment(amount, external_id, user_id, method_name, payment_me
 # 1. Карта (paymentMethod = 11)
 @app.route('/create_card_payment', methods=['GET'])
 def create_card_payment():
-    amount = 137.61  # 150 / 1.09
+    amount = 137.6125  # 150 / 1.09
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
     return create_platega_payment(amount, external_id, user_id, "картой", payment_method=11)
