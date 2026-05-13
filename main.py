@@ -108,14 +108,9 @@ def platega_webhook():
                 else:
                     user_id = payload
                 
-                if user_id:
+                if user_id and BOT_TOKEN:
                     # Отправляем сообщение с inline-кнопкой для копирования
-                    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-                    
-                    # Простой способ без библиотеки telegram
-                    import requests
-                    bot_token = BOT_TOKEN
-                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                     
                     keyboard = {
                         "inline_keyboard": [
@@ -132,6 +127,8 @@ def platega_webhook():
                     
                     tg_response = requests.post(url, json=payload_tg, timeout=10)
                     print(f"📤 Ответ Telegram: {tg_response.status_code} - {tg_response.text}")
+                else:
+                    print("❌ Нет user_id или BOT_TOKEN")
                     
             return "OK", 200
         else:
