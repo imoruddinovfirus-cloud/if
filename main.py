@@ -89,21 +89,59 @@ def platega_webhook():
     try:
         data = request.json
         print(f"📩 Вебхук: {data}")
+        
         if data.get('status') == 'CONFIRMED':
             payload = data.get('payload')
             if not payload:
+                print("❌ Нет payload")
                 return "❌ Нет payload", 400
+            
             transactions = load_transactions()
             if payload in transactions:
+                # Обновляем статус
                 transactions[payload]['status'] = 'CONFIRMED'
                 save_transactions(transactions)
-                user_id = payload.split('_')[1] if '_' in payload else None
+                
+                # Извлекаем user_id из payload (формат: fin_1234567890)
+                if '_' in payload:
+                    user_id = payload.split('_')[1]
+                else:
+                    user_id = payload
+                
                 if user_id:
-                    send_telegram_message(user_id, f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}")
+                    # Отправляем сообщение с inline-кнопкой для копирования
+                    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                    
+                    # Простой способ без библиотеки telegram
+                    import requests
+                    bot_token = BOT_TOKEN
+                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                    
+                    keyboard = {
+                        "inline_keyboard": [
+                            [{"text": "📋 Скопировать ключ", "copy_text": {"text": VPN_KEY}}]
+                        ]
+                    }
+                    
+                    payload_tg = {
+                        "chat_id": user_id,
+                        "text": "✅ Оплата подтверждена! Нажмите кнопку, чтобы скопировать ключ:",
+                        "reply_markup": keyboard,
+                        "parse_mode": "HTML"
+                    }
+                    
+                    tg_response = requests.post(url, json=payload_tg, timeout=10)
+                    print(f"📤 Ответ Telegram: {tg_response.status_code} - {tg_response.text}")
+                    
             return "OK", 200
-        return "OK", 200
+        else:
+            print(f"⚠️ Статус не CONFIRMED: {data.get('status')}")
+            return "OK", 200
+            
     except Exception as e:
         print(f"❌ Ошибка вебхука: {e}")
+        import traceback
+        traceback.print_exc()
         return "Internal Server Error", 500
 
 @app.route('/health', methods=['GET'])
