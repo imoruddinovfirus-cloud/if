@@ -99,7 +99,12 @@ def platega_webhook():
                 save_transactions(transactions)
                 user_id = payload.split('_')[1] if '_' in payload else None
                 if user_id:
-                    send_telegram_message(user_id, f"✅ Оплата подтверждена!\n\n🔑 Ваш ключ: {VPN_KEY}")
+                    # Отправляем сообщение с кнопкой копирования
+                    send_telegram_message(
+                        user_id,
+                        "✅ Оплата подтверждена! Нажмите кнопку, чтобы скопировать ключ:",
+                        copy_key=VPN_KEY
+                    )
             return "OK", 200
         return "OK", 200
     except Exception as e:
