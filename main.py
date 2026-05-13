@@ -37,8 +37,7 @@ def send_telegram_message(chat_id, text):
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
 
-def create_platega_payment(amount, external_id, user_id, method_name):
-    """Общая функция для создания платежа в Platega"""
+def create_platega_payment(amount, external_id, user_id, method_name, payment_method):
     if not external_id or not user_id:
         return "❌ Нет externalId или userId", 400
     
@@ -48,6 +47,7 @@ def create_platega_payment(amount, external_id, user_id, method_name):
         "X-Secret": PLATEGA_SECRET
     }
     payload = {
+        "paymentMethod": payment_method,
         "paymentDetails": {"amount": amount, "currency": "RUB"},
         "description": f"VPN payment ({method_name})",
         "return": "https://t.me/ваш_бот?start=success",
@@ -57,14 +57,13 @@ def create_platega_payment(amount, external_id, user_id, method_name):
     }
     
     try:
-        resp = requests.post("https://app.platega.io/v2/transaction/process", headers=headers, json=payload, timeout=30)
+        resp = requests.post("https://app.platega.io/transaction/process", headers=headers, json=payload, timeout=30)
         data = resp.json()
         
-        if resp.status_code == 200 and 'url' in data:
+        if resp.status_code == 200 and 'redirect' in data:
+            payment_url = data.get('redirect')
             transaction_id = data.get('transactionId')
-            payment_url = data.get('url')
             
-            # Сохраняем транзакцию
             transactions = load_transactions()
             transactions[external_id] = {
                 "transactionId": transaction_id,
@@ -73,7 +72,6 @@ def create_platega_payment(amount, external_id, user_id, method_name):
             }
             save_transactions(transactions)
             
-            # Отправляем ссылку пользователю
             send_telegram_message(user_id, f"🔗 Ссылка на оплату {method_name}: {payment_url}\n\nСумма: 150 руб.")
             return "OK", 200
         else:
@@ -81,32 +79,29 @@ def create_platega_payment(amount, external_id, user_id, method_name):
     except Exception as e:
         return f"Ошибка сервера: {str(e)}", 500
 
-# ==================== ЭНДПОИНТЫ ДЛЯ РАЗНЫХ СПОСОБОВ ОПЛАТЫ ====================
-
-# Карта (9% комиссия) — пользователь платит 150, ты получаешь ~136.5
+# 1. Карта (paymentMethod = 11)
 @app.route('/create_card_payment', methods=['GET'])
 def create_card_payment():
-    amount = 137.6125  # чтобы пользователь заплатил 150 с комиссией 9%
+    amount = 137.61  # 150 / 1.09
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
-    return create_platega_payment(amount, external_id, user_id, "картой")
+    return create_platega_payment(amount, external_id, user_id, "картой", payment_method=11)
 
-# СБП (8% комиссия) — пользователь платит 150, ты получаешь ~138.9
+# 2. СБП (paymentMethod = 2)
 @app.route('/create_sbp_payment', methods=['GET'])
 def create_sbp_payment():
-    amount = 142  # чтобы пользователь заплатил 150 с комиссией 8%
+    amount = 138.89  # 150 / 1.08
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
-    return create_platega_payment(amount, external_id, user_id, "СБП")
+    return create_platega_payment(amount, external_id, user_id, "СБП", payment_method=2)
 
-# Криптовалюта (3% комиссия) — пользователь платит 150, ты получаешь ~145.6
+# 3. Криптовалюта (paymentMethod = 13)
 @app.route('/create_crypto_payment', methods=['GET'])
 def create_crypto_payment():
-    amount = 160  # чтобы пользователь заплатил 150 с комиссией 3%
+    amount = 145.63  # 150 / 1.03
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
-    return create_platega_payment(amount, external_id, user_id, "криптовалютой")
-
+    return create_platega_payment(amount, external_id, user_id, "криптовалютой", payment_method=13)
 # ==================== ОСТАЛЬНЫЕ ЭНДПОИНТЫ ====================
 
 @app.route('/platega_webhook', methods=['POST'])
