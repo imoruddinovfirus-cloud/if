@@ -90,7 +90,7 @@ def create_card_payment():
 # 2. СБП (paymentMethod = 2)
 @app.route('/create_sbp_payment', methods=['GET'])
 def create_sbp_payment():
-    amount = 138.89  # 150 / 1.08
+    amount = 2.0  # 150 / 1.08
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
     return create_platega_payment(amount, external_id, user_id, "СБП", payment_method=2)
