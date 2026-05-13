@@ -86,7 +86,7 @@ def create_platega_payment(amount, external_id, user_id, method_name):
 # Карта (9% комиссия) — пользователь платит 150, ты получаешь ~136.5
 @app.route('/create_card_payment', methods=['GET'])
 def create_card_payment():
-    amount = 137.61  # чтобы пользователь заплатил 150 с комиссией 9%
+    amount = 137.6125  # чтобы пользователь заплатил 150 с комиссией 9%
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
     return create_platega_payment(amount, external_id, user_id, "картой")
@@ -94,7 +94,7 @@ def create_card_payment():
 # СБП (8% комиссия) — пользователь платит 150, ты получаешь ~138.9
 @app.route('/create_sbp_payment', methods=['GET'])
 def create_sbp_payment():
-    amount = 140  # чтобы пользователь заплатил 150 с комиссией 8%
+    amount = 142  # чтобы пользователь заплатил 150 с комиссией 8%
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
     return create_platega_payment(amount, external_id, user_id, "СБП")
@@ -102,7 +102,7 @@ def create_sbp_payment():
 # Криптовалюта (3% комиссия) — пользователь платит 150, ты получаешь ~145.6
 @app.route('/create_crypto_payment', methods=['GET'])
 def create_crypto_payment():
-    amount = 150  # чтобы пользователь заплатил 150 с комиссией 3%
+    amount = 160  # чтобы пользователь заплатил 150 с комиссией 3%
     external_id = request.args.get('externalId')
     user_id = request.args.get('userId')
     return create_platega_payment(amount, external_id, user_id, "криптовалютой")
